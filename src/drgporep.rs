@@ -162,7 +162,7 @@ impl<'a, G: Graph> ProofScheme<'a> for DrgPoRep<G> {
 
                 let tree_d = &priv_inputs.aux.tree_d;
                 let tree_r = &priv_inputs.aux.tree_r;
-                let replica = priv_inputs.replicas[i];
+                let replica = priv_inputs.replica;
 
                 let data =
                     bytes_into_fr::<Bls12>(data_at_node(replica, challenge, pub_params.lambda)?)?;
@@ -473,7 +473,7 @@ mod tests {
 
             let pub_inputs = PublicInputs {
                 prover_id: bytes_into_fr::<Bls12>(prover_id.as_slice()).unwrap(),
-                challenge,
+                vec![challenge],
                 tau: &tau,
             };
 
@@ -490,12 +490,12 @@ mod tests {
                 let real_parents = real_proof.replica_parents;
 
                 // Parent vector claiming the wrong parents.
-                let fake_parents = real_parents
+                let fake_parents = vec![real_parents
                     .iter()
                     // Incrementing each parent node will give us a different parent set.
                     // It's fine to be out of range, since this only needs to fail.
                     .map(|(i, data_proof)| (i + 1, data_proof.clone()))
-                    .collect::<Vec<_>>();
+                    .collect::<Vec<_>>()];
 
                 let proof = Proof::new(
                     real_proof.replica_node.clone(),
@@ -523,7 +523,7 @@ mod tests {
 
                 // Parent vector claiming the right parents but providing valid proofs for different
                 // parents.
-                let fake_proof_parents = real_parents
+                let fake_proof_parents = vec![real_parents[0]
                     .iter()
                     .enumerate()
                     .map(|(i, (p, _))| {
@@ -532,12 +532,12 @@ mod tests {
                         let j = real_parents[x].0;
                         (*p, real_parents[j].1.clone())
                     })
-                    .collect::<Vec<_>>();
+                    .collect::<Vec<_>>()];
 
                 let proof2 = Proof::new(
-                    real_proof.replica_node,
+                    real_proof.replica_nodes,
                     fake_proof_parents,
-                    real_proof.node.into(),
+                    real_proof.nodes.into(),
                 );
 
                 assert!(
@@ -553,7 +553,7 @@ mod tests {
             if use_wrong_challenge {
                 let pub_inputs_with_wrong_challenge_for_proof = PublicInputs {
                     prover_id: bytes_into_fr::<Bls12>(prover_id.as_slice()).unwrap(),
-                    challenge: if challenge == 1 { 2 } else { 1 },
+                    challenges: vec![if challenge == 1 { 2 } else { 1 }],
                     tau: &tau,
                 };
                 let verified =

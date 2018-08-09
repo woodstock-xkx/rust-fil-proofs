@@ -454,7 +454,7 @@ mod tests {
         let prover_id_fr = bytes_into_fr::<Bls12>(prover_id.as_slice()).unwrap();
         let pub_inputs = drgporep::PublicInputs {
             prover_id: prover_id_fr,
-            challenge,
+            challenges: vec![challenge],
             tau: &tau,
         };
         let priv_inputs = drgporep::PrivateInputs {
@@ -470,31 +470,31 @@ mod tests {
             "failed to verify (non circuit)"
         );
 
-        let replica_node = Some(proof_nc.replica_node.data);
+        let replica_node = Some(proof_nc.replica_nodes[0].data);
 
-        let replica_node_path = proof_nc.replica_node.proof.as_options();
-        let replica_root = Some(proof_nc.replica_node.proof.root().into());
+        let replica_node_path = proof_nc.replica_nodes[0].proof.as_options();
+        let replica_root = Some(proof_nc.replica_nodes[0].proof.root().into());
         let replica_parents = proof_nc
-            .replica_parents
+            .replica_parents[0]
             .iter()
             .map(|(_, parent)| Some(parent.data))
             .collect();
         let replica_parents_paths: Vec<_> = proof_nc
-            .replica_parents
+            .replica_parents[0]
             .iter()
             .map(|(_, parent)| parent.proof.as_options())
             .collect();
 
-        let data_node_path = proof_nc.node.proof.as_options();
-        let data_root = Some(proof_nc.node.proof.root().into());
+        let data_node_path = proof_nc.nodes[0].proof.as_options();
+        let data_root = Some(proof_nc.nodes[0].proof.root().into());
         let prover_id = Some(prover_id_fr);
 
         assert!(
-            proof_nc.node.proof.validate(challenge),
+            proof_nc.node[0].proof.validate(challenge),
             "failed to verify data commitment"
         );
         assert!(
-            proof_nc.node.proof.validate_data(&data_node.unwrap()),
+            proof_nc.node[0].proof.validate_data(&data_node.unwrap()),
             "failed to verify data commitment with data"
         );
 
@@ -504,13 +504,13 @@ mod tests {
             params,
             lambda,
             sloth_iter,
-            replica_node,
-            replica_node_path,
+            vec![replica_node],
+            vec![replica_node_path],
             replica_root,
-            replica_parents,
-            replica_parents_paths,
-            data_node,
-            data_node_path,
+            vec![replica_parents],
+            vec![replica_parents_paths],
+            vec![data_node],
+            vec![data_node_path],
             data_root,
             prover_id,
             degree,
@@ -551,13 +551,13 @@ mod tests {
             params,
             lambda * 8,
             sloth_iter,
+            vec![Some(Fr::rand(rng)); 1],
+            vec![vec![Some((Fr::rand(rng), false)); tree_depth]; 1],
             Some(Fr::rand(rng)),
-            vec![Some((Fr::rand(rng), false)); tree_depth],
-            Some(Fr::rand(rng)),
-            vec![Some(Fr::rand(rng)); m],
-            vec![vec![Some((Fr::rand(rng), false)); tree_depth]; m],
-            Some(Fr::rand(rng)),
-            vec![Some((Fr::rand(rng), false)); tree_depth],
+            vec![vec![Some(Fr::rand(rng)); m]; 1],
+            vec![vec![vec![Some((Fr::rand(rng), false)); tree_depth]; m]; 1],
+            vec![Some(Fr::rand(rng)); 1],
+            vec![vec![Some((Fr::rand(rng), false)); tree_depth]; 1],
             Some(Fr::rand(rng)),
             Some(Fr::rand(rng)),
             m,
@@ -609,7 +609,7 @@ mod tests {
 
         let public_inputs = drgporep::PublicInputs {
             prover_id: prover_id_fr,
-            challenge,
+            challenges: vec![challenge],
             tau: &tau,
         };
         let private_inputs = drgporep::PrivateInputs {
