@@ -107,7 +107,7 @@ impl Proof {
                     self.nodes[i].serialize(),
                 ].concat()
             })
-            .collect()
+            .collect::<Vec<Vec<u8>>>()
             .concat();
 
         res 
@@ -155,7 +155,7 @@ impl<'a, G: Graph> ProofScheme<'a> for DrgPoRep<G> {
         pub_inputs: &Self::PublicInputs,
         priv_inputs: &Self::PrivateInputs,
     ) -> Result<Self::Proof> {
-        let results = (0..pub_inputs.challenges.len())
+        let (replica_nodes, replica_parents, data_nodes) = (0..pub_inputs.challenges.len())
             .map(|i| {
                 let challenge = pub_inputs.challenges[i] % pub_params.graph.size();
                 assert_ne!(challenge, 0, "can not prove the first node");
@@ -199,13 +199,22 @@ impl<'a, G: Graph> ProofScheme<'a> for DrgPoRep<G> {
                     proof: node_proof.into(),
                 };
 
-                (replica_node, replica_parents, data_nodes)
+                Ok((replica_node, replica_parents, data_nodes))
+            })
+            .collect::<Result<Vec<_>>>()?
+            .into_iter()
+            .fold((Vec::new(), Vec::new(), Vec::new()), |mut acc, (replica, parents, node)| {
+                acc.0.push(replica);
+                acc.1.push(parents);
+                acc.2.push(node);
+
+                acc
             });
 
         let proof = Proof::new(
-            results.map(|(replica_node,_,_)| replica_node).collect(),
-            results.map(|(_,replica_parents,_)| replica_parents).collect(),
-            results.map(|(_,_,data_node)| data_node).collect(),
+            replica_nodes,
+            replica_parents,
+            data_nodes,
         );
 
         Ok(proof)
@@ -473,7 +482,7 @@ mod tests {
 
             let pub_inputs = PublicInputs {
                 prover_id: bytes_into_fr::<Bls12>(prover_id.as_slice()).unwrap(),
-                vec![challenge],
+                challenges: vec![challenge],
                 tau: &tau,
             };
 
