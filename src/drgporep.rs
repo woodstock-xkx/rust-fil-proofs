@@ -91,7 +91,7 @@ pub struct Proof {
 
 impl Proof {
     pub fn serialize(&self) -> Vec<u8> {
-        (0..self.nodes.len())
+        let res : Vec<_> = (0..self.nodes.len())
             .map(|i| {
                 vec![
                     self.replica_nodes[i].serialize(),
@@ -108,7 +108,9 @@ impl Proof {
                 ].concat()
             })
             .collect()
-            .concat()
+            .concat();
+
+        res 
     }
 }
 
@@ -201,9 +203,9 @@ impl<'a, G: Graph> ProofScheme<'a> for DrgPoRep<G> {
             });
 
         let proof = Proof::new(
-            results.map(|replica_node,_,_| replica_node),
-            results.map(|_,replica_parents,_| replica_parents),
-            results.map(|_,_,data_node| data_node),
+            results.map(|(replica_node,_,_)| replica_node).collect(),
+            results.map(|(_,replica_parents,_)| replica_parents).collect(),
+            results.map(|(_,_,data_node)| data_node).collect(),
         );
 
         Ok(proof)
