@@ -74,7 +74,7 @@ impl<'a, G: Graph> CompoundProof<'a, Bls12, DrgPoRep<G>, DrgPoRepCircuit<'a, Bls
     fn generate_public_inputs(
         pub_in: &<DrgPoRep<G> as ProofScheme>::PublicInputs,
         pub_params: &<DrgPoRep<G> as ProofScheme>::PublicParams,
-    ) -> Vec<Vec<Fr>> {
+    ) -> Vec<Fr> {
         let prover_id = pub_in.prover_id;
         let challenges = pub_in.challenges;
         let tau = pub_in.tau;
@@ -90,7 +90,7 @@ impl<'a, G: Graph> CompoundProof<'a, Bls12, DrgPoRep<G>, DrgPoRepCircuit<'a, Bls
 
         let por_pub_params = merklepor::PublicParams { lambda, leaves };
 
-        let inputs = challenges
+        challenges
             .iter()
             .map(|_| {
                 let mut input = Vec::new();
@@ -114,10 +114,9 @@ impl<'a, G: Graph> CompoundProof<'a, Bls12, DrgPoRep<G>, DrgPoRepCircuit<'a, Bls
                     challenge,
                 };
                 let por_inputs = PoRCompound::generate_public_inputs(&por_pub_inputs, &por_pub_params);
-                input.extend(por_inputs);
+                input.extend(por_inputs)
             })
-
-        inputs
+            .collect()
     }
 
     fn circuit<'b>(
@@ -127,57 +126,58 @@ impl<'a, G: Graph> CompoundProof<'a, Bls12, DrgPoRep<G>, DrgPoRepCircuit<'a, Bls
         engine_params: &'a <Bls12 as JubjubEngine>::Params,
     ) -> DrgPoRepCircuit<'a, Bls12> {
         let lambda = public_params.lambda;
-        let arity = public_inputs.challenges.len()
+        let arity = public_inputs.challenges.len();
 
         let replica_nodes = proof
             .replica_nodes
             .iter()
-            .map(|(_, node)| Some(node.data))
+            .map(|node| Some(node.data))
             .collect();
 
-        let replica_node_paths = proof
+        let replica_nodes_paths = proof
             .replica_nodes
             .iter()
-            .map(|(_, node)| node.proof.as_options())
-            .collect()
+            .map(|node| node.proof.as_options())
+            .collect();
 
-        let replica_root = Some(proof.replica_node.proof.root().into());
+        let replica_root = Some(proof.replica_nodes[0].proof.root().into());
 
         let replica_parents = proof
             .replica_parents
             .iter()
-            .map(|(_, parents)| {
+            .map(|parents| {
                 parents
                     .iter()
-                    .map(|(_, parent)| Some(parent.data))
-                    .collect();
-            }
+                    .map(|(_,parent)| Some(parent.data))
+                    .collect()
+            })
             .collect();
 
-        let replica_parents_paths = proof
+        let replica_parents_paths : Vec<Vec<_>> = proof
             .replica_parents
             .iter()
-            .map(|(_, parents)| {
-                parents
+            .map(|parents| {
+                let p : Vec<_> = parents
                     .iter()
                     .map(|(_, parent)| parent.proof.as_options())
                     .collect();
-            }
+                p
+            })
             .collect();
 
         let data_nodes = proof
             .nodes
             .iter()
-            .map(|(_, node)| Some(node.data))
+            .map(|node| Some(node.data))
             .collect();
 
-        let replica_node_paths = proof
+        let data_nodes_paths = proof
             .nodes
             .iter()
-            .map(|(_, node)| node.proof.as_options())
-            .collect()
+            .map(|node| node.proof.as_options())
+            .collect();
 
-        let data_root = Some(proof.node.proof.root().into());
+        let data_root = Some(proof.nodes[0].proof.root().into());
         let prover_id = Some(public_inputs.prover_id);
 
         DrgPoRepCircuit {
@@ -290,13 +290,12 @@ impl<'a, E: JubjubEngine> Circuit<E> for DrgPoRepCircuit<'a, E> {
 
         multipack::pack_into_inputs(cs.namespace(|| "prover_id"), &prover_id_bits)?;
 
-        (0..data_nodes.len())
-            .iter()
+        (0..self.data_nodes.len())
             .map(|i| {
                 // ensure that all inputs are well formed
                 let replica_node_path = self.replica_nodes_paths[i];
                 let replica_parents_paths = self.replica_parents_paths[i];
-                let data_node_paths = self.data_nodes_paths[i];
+                let data_node_path = self.data_nodes_paths[i];
 
                 let replica_node = self.replica_nodes[i];
                 let replica_parents = self.replica_parents[i];
@@ -386,9 +385,9 @@ impl<'a, E: JubjubEngine> Circuit<E> for DrgPoRepCircuit<'a, E> {
                         |lc| lc + decoded.get_variable(),
                     );
                 }
-            })
+            });
         // profit!
-     Ok(())
+        Ok(())
     }
 }
 
@@ -490,11 +489,11 @@ mod tests {
         let prover_id = Some(prover_id_fr);
 
         assert!(
-            proof_nc.node[0].proof.validate(challenge),
+            proof_nc.nodes[0].proof.validate(challenge),
             "failed to verify data commitment"
         );
         assert!(
-            proof_nc.node[0].proof.validate_data(&data_node.unwrap()),
+            proof_nc.nodes[0].proof.validate_data(&data_node.unwrap()),
             "failed to verify data commitment with data"
         );
 
