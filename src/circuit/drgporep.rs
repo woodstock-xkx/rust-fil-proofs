@@ -105,7 +105,8 @@ impl<'a, G: Graph> CompoundProof<'a, Bls12, DrgPoRep<G>, DrgPoRepCircuit<'a, Bls
                         commitment: comm_r,
                         challenge: node,
                     };
-                    let por_inputs = PoRCompound::generate_public_inputs(&por_pub_inputs, &por_pub_params);
+                    let por_inputs =
+                        PoRCompound::generate_public_inputs(&por_pub_inputs, &por_pub_params);
                     input.extend(por_inputs);
                 }
 
@@ -113,12 +114,12 @@ impl<'a, G: Graph> CompoundProof<'a, Bls12, DrgPoRep<G>, DrgPoRepCircuit<'a, Bls
                     commitment: comm_d,
                     challenge: *challenge,
                 };
-                let por_inputs = PoRCompound::generate_public_inputs(&por_pub_inputs, &por_pub_params);
+                let por_inputs =
+                    PoRCompound::generate_public_inputs(&por_pub_inputs, &por_pub_params);
                 input.extend(por_inputs);
 
                 input
-            })
-            .collect::<Vec<Vec<_>>>()
+            }).collect::<Vec<Vec<_>>>()
             .concat()
     }
 
@@ -129,7 +130,7 @@ impl<'a, G: Graph> CompoundProof<'a, Bls12, DrgPoRep<G>, DrgPoRepCircuit<'a, Bls
         engine_params: &'a <Bls12 as JubjubEngine>::Params,
     ) -> DrgPoRepCircuit<'a, Bls12> {
         let lambda = public_params.lambda;
-        let arity = public_inputs.challenges.len();
+        let _arity = public_inputs.challenges.len();
 
         let replica_nodes = proof
             .replica_nodes
@@ -151,28 +152,22 @@ impl<'a, G: Graph> CompoundProof<'a, Bls12, DrgPoRep<G>, DrgPoRepCircuit<'a, Bls
             .map(|parents| {
                 parents
                     .iter()
-                    .map(|(_,parent)| Some(parent.data))
+                    .map(|(_, parent)| Some(parent.data))
                     .collect()
-            })
-            .collect();
+            }).collect();
 
-        let replica_parents_paths : Vec<Vec<_>> = proof
+        let replica_parents_paths: Vec<Vec<_>> = proof
             .replica_parents
             .iter()
             .map(|parents| {
-                let p : Vec<_> = parents
+                let p: Vec<_> = parents
                     .iter()
                     .map(|(_, parent)| parent.proof.as_options())
                     .collect();
                 p
-            })
-            .collect();
+            }).collect();
 
-        let data_nodes = proof
-            .nodes
-            .iter()
-            .map(|node| Some(node.data))
-            .collect();
+        let data_nodes = proof.nodes.iter().map(|node| Some(node.data)).collect();
 
         let data_nodes_paths = proof
             .nodes
@@ -276,7 +271,7 @@ impl<'a, E: JubjubEngine> Circuit<E> for DrgPoRepCircuit<'a, E> {
 
         let degree = self.degree;
 
-        let mut raw_bytes; // Need let here so borrow in match lives long enough.
+        let raw_bytes; // Need let here so borrow in match lives long enough.
         let prover_id_bytes = match prover_id {
             Some(prover_id) => {
                 raw_bytes = fr_into_bytes::<E>(&prover_id);
@@ -311,7 +306,7 @@ impl<'a, E: JubjubEngine> Circuit<E> for DrgPoRepCircuit<'a, E> {
             synthesize_proof_of_retrievability(
                 cs.namespace(|| "replica_node merkle proof"),
                 &params,
-                replica_node.clone(),
+                *replica_node,
                 replica_node_path.clone(),
                 replica_root,
             )?;
@@ -325,7 +320,7 @@ impl<'a, E: JubjubEngine> Circuit<E> for DrgPoRepCircuit<'a, E> {
                         replica_parents[i],
                         replica_parents_paths[i].clone(),
                         replica_root,
-                    );
+                    )?;
                 }
             }
 
@@ -333,7 +328,7 @@ impl<'a, E: JubjubEngine> Circuit<E> for DrgPoRepCircuit<'a, E> {
             synthesize_proof_of_retrievability(
                 cs.namespace(|| "data node commitment"),
                 &params,
-                data_node.clone(),
+                *data_node,
                 data_node_path.clone(),
                 data_root,
             )?;
@@ -347,7 +342,7 @@ impl<'a, E: JubjubEngine> Circuit<E> for DrgPoRepCircuit<'a, E> {
                     .map(|(i, val)| -> Result<Vec<Boolean>, SynthesisError> {
                         let mut v = boolean::field_into_boolean_vec_le(
                             cs.namespace(|| format!("parent {}", i)),
-                            val.clone(),
+                            *val,
                         )?;
                         // sad padding is sad
                         while v.len() < 256 {
@@ -369,7 +364,7 @@ impl<'a, E: JubjubEngine> Circuit<E> for DrgPoRepCircuit<'a, E> {
             let decoded = sloth::decode(
                 cs.namespace(|| "decode replica node commitment"),
                 &key,
-                replica_node.clone(),
+                *replica_node,
                 self.sloth_iter,
             )?;
 
@@ -475,13 +470,11 @@ mod tests {
 
         let replica_node_path = proof_nc.replica_nodes[0].proof.as_options();
         let replica_root = Some(proof_nc.replica_nodes[0].proof.root().into());
-        let replica_parents = proof_nc
-            .replica_parents[0]
+        let replica_parents = proof_nc.replica_parents[0]
             .iter()
             .map(|(_, parent)| Some(parent.data))
             .collect();
-        let replica_parents_paths: Vec<_> = proof_nc
-            .replica_parents[0]
+        let replica_parents_paths: Vec<_> = proof_nc.replica_parents[0]
             .iter()
             .map(|(_, parent)| parent.proof.as_options())
             .collect();

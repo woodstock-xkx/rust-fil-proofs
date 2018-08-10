@@ -85,12 +85,8 @@ impl DrgPoRepApp {
             replica_parents: f
                 .replica_parents
                 .iter()
-                .map(|parents| {
-                    parents
-                        .iter()
-                        .map(|parent| Some(*parent))
-                        .collect()
-                }).collect(),
+                .map(|parents| parents.iter().map(|parent| Some(*parent)).collect())
+                .collect(),
             replica_parents_paths: f.replica_parents_paths,
             data_nodes: f.data_nodes.into_iter().map(|d| Some(d)).collect(),
             data_nodes_paths: f.data_nodes_paths,
@@ -174,12 +170,8 @@ impl Example<Bls12> for DrgPoRepApp {
             replica_parents: f
                 .replica_parents
                 .iter()
-                .map(|parents| {
-                    parents
-                        .iter()
-                        .map(|parent| Some(*parent))
-                        .collect()
-                }).collect(),
+                .map(|parents| parents.iter().map(|parent| Some(*parent)).collect())
+                .collect(),
             replica_parents_paths: f.replica_parents_paths,
             data_nodes: f.data_nodes.into_iter().map(|d| Some(d)).collect(),
             data_nodes_paths: f.data_nodes_paths,

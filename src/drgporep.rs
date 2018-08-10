@@ -91,7 +91,7 @@ pub struct Proof {
 
 impl Proof {
     pub fn serialize(&self) -> Vec<u8> {
-        let res : Vec<_> = (0..self.nodes.len())
+        let res: Vec<_> = (0..self.nodes.len())
             .map(|i| {
                 vec![
                     self.replica_nodes[i].serialize(),
@@ -106,11 +106,10 @@ impl Proof {
                         }),
                     self.nodes[i].serialize(),
                 ].concat()
-            })
-            .collect::<Vec<Vec<u8>>>()
+            }).collect::<Vec<Vec<u8>>>()
             .concat();
 
-        res 
+        res
     }
 }
 
@@ -180,7 +179,11 @@ impl<'a, G: Graph> ProofScheme<'a> for DrgPoRep<G> {
                         let proof = tree_r.gen_proof(p);
                         DataProof {
                             proof: proof.into(),
-                            data: bytes_into_fr::<Bls12>(data_at_node(replica, p, pub_params.lambda)?)?,
+                            data: bytes_into_fr::<Bls12>(data_at_node(
+                                replica,
+                                p,
+                                pub_params.lambda,
+                            )?)?,
                         }
                     }));
                 }
@@ -200,22 +203,20 @@ impl<'a, G: Graph> ProofScheme<'a> for DrgPoRep<G> {
                 };
 
                 Ok((replica_node, replica_parents, data_nodes))
-            })
-            .collect::<Result<Vec<_>>>()?
+            }).collect::<Result<Vec<_>>>()?
             .into_iter()
-            .fold((Vec::new(), Vec::new(), Vec::new()), |mut acc, (replica, parents, node)| {
-                acc.0.push(replica);
-                acc.1.push(parents);
-                acc.2.push(node);
+            .fold(
+                (Vec::new(), Vec::new(), Vec::new()),
+                |mut acc, (replica, parents, node)| {
+                    acc.0.push(replica);
+                    acc.1.push(parents);
+                    acc.2.push(node);
 
-                acc
-            });
+                    acc
+                },
+            );
 
-        let proof = Proof::new(
-            replica_nodes,
-            replica_parents,
-            data_nodes,
-        );
+        let proof = Proof::new(replica_nodes, replica_parents, data_nodes);
 
         Ok(proof)
     }
@@ -225,9 +226,7 @@ impl<'a, G: Graph> ProofScheme<'a> for DrgPoRep<G> {
         pub_inputs: &Self::PublicInputs,
         proof: &Self::Proof,
     ) -> Result<bool> {
-
         for i in 0..pub_inputs.challenges.len() {
-
             {
                 // This was verify_proof_meta.
                 if pub_inputs.challenges[i] >= pub_params.graph.size() {
@@ -243,8 +242,7 @@ impl<'a, G: Graph> ProofScheme<'a> for DrgPoRep<G> {
                 }
 
                 let expected_parents = pub_params.graph.parents(pub_inputs.challenges[i]);
-                let parents_as_expected = proof
-                    .replica_parents[i]
+                let parents_as_expected = proof.replica_parents[i]
                     .iter()
                     .zip(&expected_parents)
                     .all(|(actual, expected)| actual.0 == *expected);
@@ -272,13 +270,13 @@ impl<'a, G: Graph> ProofScheme<'a> for DrgPoRep<G> {
 
             let prover_bytes = fr_into_bytes::<Bls12>(&pub_inputs.prover_id);
 
-            let key_input = proof
-                .replica_parents[i]
-                .iter()
-                .fold(prover_bytes, |mut acc, (_, p)| {
-                    acc.extend(fr_into_bytes::<Bls12>(&p.data));
-                    acc
-                });
+            let key_input =
+                proof.replica_parents[i]
+                    .iter()
+                    .fold(prover_bytes, |mut acc, (_, p)| {
+                        acc.extend(fr_into_bytes::<Bls12>(&p.data));
+                        acc
+                    });
             let key = kdf::kdf::<Bls12>(key_input.as_slice(), pub_params.graph.degree());
             let unsealed: Fr =
                 sloth::decode::<Bls12>(&key, &proof.replica_nodes[i].data, pub_params.sloth_iter);
@@ -291,9 +289,8 @@ impl<'a, G: Graph> ProofScheme<'a> for DrgPoRep<G> {
                 println!("invalid data {:?}", unsealed);
                 return Ok(false);
             }
-
         }
-        
+
         Ok(true)
     }
 }
@@ -499,12 +496,14 @@ mod tests {
                 let real_parents = real_proof.replica_parents;
 
                 // Parent vector claiming the wrong parents.
-                let fake_parents = vec![real_parents[0]
+                let fake_parents = vec![
+                    real_parents[0]
                     .iter()
                     // Incrementing each parent node will give us a different parent set.
                     // It's fine to be out of range, since this only needs to fail.
                     .map(|(i, data_proof)| (i + 1, data_proof.clone()))
-                    .collect::<Vec<_>>()];
+                    .collect::<Vec<_>>(),
+                ];
 
                 let proof = Proof::new(
                     real_proof.replica_nodes.clone(),
@@ -532,16 +531,17 @@ mod tests {
 
                 // Parent vector claiming the right parents but providing valid proofs for different
                 // parents.
-                let fake_proof_parents = vec![real_parents[0]
-                    .iter()
-                    .enumerate()
-                    .map(|(i, (p, _))| {
-                        // Rotate the real parent proofs.
-                        let x = (i + 1) % real_parents[0].len();
-                        let j = real_parents[0][x].0;
-                        (*p, real_parents[0][j].1.clone())
-                    })
-                    .collect::<Vec<_>>()];
+                let fake_proof_parents = vec![
+                    real_parents[0]
+                        .iter()
+                        .enumerate()
+                        .map(|(i, (p, _))| {
+                            // Rotate the real parent proofs.
+                            let x = (i + 1) % real_parents[0].len();
+                            let j = real_parents[0][x].0;
+                            (*p, real_parents[0][j].1.clone())
+                        }).collect::<Vec<_>>(),
+                ];
 
                 let proof2 = Proof::new(
                     real_proof.replica_nodes,

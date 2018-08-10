@@ -107,13 +107,21 @@ pub fn fake_drgpoprep_proof<R: Rng>(
     FakeDrgParams {
         prover_id,
         replica_nodes: (0..challenge_count).map(|_| replica_node).collect(),
-        replica_nodes_paths: (0..challenge_count).map(|_| replica_node_path.clone()).collect(),
+        replica_nodes_paths: (0..challenge_count)
+            .map(|_| replica_node_path.clone())
+            .collect(),
         replica_root,
-        replica_parents: (0..challenge_count).map(|_| replica_parents.clone()).collect(),
-        replica_parents_paths: (0..challenge_count).map(|_| replica_parents_paths.clone()).collect(),
+        replica_parents: (0..challenge_count)
+            .map(|_| replica_parents.clone())
+            .collect(),
+        replica_parents_paths: (0..challenge_count)
+            .map(|_| replica_parents_paths.clone())
+            .collect(),
         data_nodes: (0..challenge_count).map(|_| data_node).collect(),
-        data_nodes_paths: (0..challenge_count).map(|_| data_node_path.clone()).collect(),
-        data_root: data_root,
+        data_nodes_paths: (0..challenge_count)
+            .map(|_| data_node_path.clone())
+            .collect(),
+        data_root,
     }
 }
 
