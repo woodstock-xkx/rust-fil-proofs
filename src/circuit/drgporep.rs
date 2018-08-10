@@ -396,12 +396,11 @@ mod tests {
     use drgporep;
     use drgraph::{graph_height, new_seed, BucketGraph};
     use fr32::{bytes_into_fr, fr_into_bytes};
-    use pairing::bls12_381::FrRepr;
     use pairing::Field;
     use porep::PoRep;
     use proof::ProofScheme;
     use rand::Rand;
-    use rand::{Rng, SeedableRng, XorShiftRng};
+    use rand::{SeedableRng, XorShiftRng};
     use sapling_crypto::jubjub::JubjubBls12;
     use util::data_at_node;
 

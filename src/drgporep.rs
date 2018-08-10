@@ -154,67 +154,57 @@ impl<'a, G: Graph> ProofScheme<'a> for DrgPoRep<G> {
         pub_inputs: &Self::PublicInputs,
         priv_inputs: &Self::PrivateInputs,
     ) -> Result<Self::Proof> {
-        let (replica_nodes, replica_parents, data_nodes) = (0..pub_inputs.challenges.len())
-            .map(|i| {
-                let challenge = pub_inputs.challenges[i] % pub_params.graph.size();
-                assert_ne!(challenge, 0, "can not prove the first node");
+        let len = pub_inputs.challenges.len();
 
-                let tree_d = &priv_inputs.aux.tree_d;
-                let tree_r = &priv_inputs.aux.tree_r;
-                let replica = priv_inputs.replica;
+        let mut replica_nodes = Vec::with_capacity(len);
+        let mut replica_parents = Vec::with_capacity(len);
+        let mut data_nodes = Vec::with_capacity(len);
 
-                let data =
-                    bytes_into_fr::<Bls12>(data_at_node(replica, challenge, pub_params.lambda)?)?;
+        for i in 0..len {
+            let challenge = pub_inputs.challenges[i] % pub_params.graph.size();
+            assert_ne!(challenge, 0, "can not prove the first node");
 
-                let replica_node = DataProof {
-                    proof: tree_r.gen_proof(challenge).into(),
-                    data,
-                };
+            let tree_d = &priv_inputs.aux.tree_d;
+            let tree_r = &priv_inputs.aux.tree_r;
+            let replica = priv_inputs.replica;
 
-                let parents = pub_params.graph.parents(challenge);
-                let mut replica_parents = Vec::with_capacity(parents.len());
+            let data =
+                bytes_into_fr::<Bls12>(data_at_node(replica, challenge, pub_params.lambda)?)?;
 
-                for p in parents {
-                    replica_parents.push((p, {
-                        let proof = tree_r.gen_proof(p);
-                        DataProof {
-                            proof: proof.into(),
-                            data: bytes_into_fr::<Bls12>(data_at_node(
-                                replica,
-                                p,
-                                pub_params.lambda,
-                            )?)?,
-                        }
-                    }));
-                }
+            replica_nodes.push(DataProof {
+                proof: tree_r.gen_proof(challenge).into(),
+                data,
+            });
 
-                let node_proof = tree_d.gen_proof(challenge);
+            let parents = pub_params.graph.parents(challenge);
+            let mut replica_parentsi = Vec::with_capacity(parents.len());
 
-                let extracted = Self::extract(
-                    pub_params,
-                    &fr_into_bytes::<Bls12>(&pub_inputs.prover_id),
-                    &replica,
-                    challenge,
-                )?;
+            for p in parents {
+                replica_parentsi.push((p, {
+                    let proof = tree_r.gen_proof(p);
+                    DataProof {
+                        proof: proof.into(),
+                        data: bytes_into_fr::<Bls12>(data_at_node(replica, p, pub_params.lambda)?)?,
+                    }
+                }));
+            }
 
-                let data_nodes = DataProof {
-                    data: bytes_into_fr::<Bls12>(&extracted)?,
-                    proof: node_proof.into(),
-                };
+            replica_parents.push(replica_parentsi);
 
-                Ok((replica_node, replica_parents, data_nodes))
-            }).collect::<Result<Vec<_>>>()?
-            .into_iter()
-            .fold(
-                (Vec::new(), Vec::new(), Vec::new()),
-                |mut acc, (replica, parents, node)| {
-                    acc.0.push(replica);
-                    acc.1.push(parents);
-                    acc.2.push(node);
+            let node_proof = tree_d.gen_proof(challenge);
 
-                    acc
-                },
-            );
+            let extracted = Self::extract(
+                pub_params,
+                &fr_into_bytes::<Bls12>(&pub_inputs.prover_id),
+                &replica,
+                challenge,
+            )?;
+
+            data_nodes.push(DataProof {
+                data: bytes_into_fr::<Bls12>(&extracted)?,
+                proof: node_proof.into(),
+            });
+        }
 
         let proof = Proof::new(replica_nodes, replica_parents, data_nodes);
 
@@ -242,6 +232,15 @@ impl<'a, G: Graph> ProofScheme<'a> for DrgPoRep<G> {
                 }
 
                 let expected_parents = pub_params.graph.parents(pub_inputs.challenges[i]);
+                if proof.replica_parents[i].len() != expected_parents.len() {
+                    println!(
+                        "proof parents were not the same length as in public parameters: {} != {}",
+                        proof.replica_parents[i].len(),
+                        expected_parents.len()
+                    );
+                    return Ok(false);
+                }
+
                 let parents_as_expected = proof.replica_parents[i]
                     .iter()
                     .zip(&expected_parents)
@@ -277,6 +276,7 @@ impl<'a, G: Graph> ProofScheme<'a> for DrgPoRep<G> {
                         acc.extend(fr_into_bytes::<Bls12>(&p.data));
                         acc
                     });
+
             let key = kdf::kdf::<Bls12>(key_input.as_slice(), pub_params.graph.degree());
             let unsealed: Fr =
                 sloth::decode::<Bls12>(&key, &proof.replica_nodes[i].data, pub_params.sloth_iter);
@@ -479,7 +479,7 @@ mod tests {
 
             let pub_inputs = PublicInputs {
                 prover_id: bytes_into_fr::<Bls12>(prover_id.as_slice()).unwrap(),
-                challenges: vec![challenge],
+                challenges: vec![challenge, challenge],
                 tau: &tau,
             };
 

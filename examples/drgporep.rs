@@ -14,7 +14,6 @@ use sapling_crypto::jubjub::{JubjubBls12, JubjubEngine};
 
 use proofs::circuit;
 use proofs::circuit::bench::BenchCS;
-use proofs::fr32::fr_into_bytes;
 use proofs::test_helper::fake_drgpoprep_proof;
 
 struct DrgPoRepExample<'a, E: JubjubEngine> {
@@ -72,7 +71,6 @@ impl DrgPoRepApp {
         sloth_iter: usize,
     ) -> BenchCS<Bls12> {
         let f = fake_drgpoprep_proof(rng, tree_depth, m, SLOTH_ROUNDS, challenge_count);
-        let prover_bytes = fr_into_bytes::<Bls12>(&f.prover_id);
 
         // create an instance of our circut (with the witness)
         let c = DrgPoRepExample {
@@ -157,7 +155,6 @@ impl Example<Bls12> for DrgPoRepApp {
         sloth_iter: usize,
     ) -> Proof<Bls12> {
         let f = fake_drgpoprep_proof(rng, tree_depth, m, SLOTH_ROUNDS, challenge_count);
-        let prover_bytes = fr_into_bytes::<Bls12>(&f.prover_id);
 
         // create an instance of our circut (with the witness)
         let c = DrgPoRepExample {

@@ -233,15 +233,15 @@ impl<'a, L: Layers> ProofScheme<'a> for L {
 
             let ep = &proof_layer;
             let parents: Vec<_> = ep
-                .replica_parents
+                .replica_parents[0]
                 .iter()
                 .map(|p| {
                     (
-                        p[0].0,
+                        p.0,
                         drgporep::DataProof {
                             // TODO: investigate if clone can be avoided by using a reference in drgporep::DataProof
-                            proof: p[0].1.proof.clone(),
-                            data: p[0].1.data,
+                            proof: p.1.proof.clone(),
+                            data: p.1.data,
                         },
                     )
                 })
@@ -258,7 +258,7 @@ impl<'a, L: Layers> ProofScheme<'a> for L {
                     }],
                     replica_parents: vec![parents],
                     // TODO: investigate if clone can be avoided by using a reference in drgporep::DataProof
-                    nodes: ep.nodes.clone(),
+                    nodes: vec![ep.nodes[0].clone()],
                 },
             )?;
 
