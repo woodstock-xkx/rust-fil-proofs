@@ -1,10 +1,13 @@
 use byteorder::{ByteOrder, LittleEndian};
 use pairing::bls12_381::{Bls12, Fr, FrRepr};
+use pairing::PrimeFieldRepr;
 use sapling_crypto::jubjub::JubjubBls12;
 use sapling_crypto::pedersen_hash::{pedersen_hash, Personalization};
 
 use fr32::bytes_into_frs;
 use util::{bits_to_bytes, bytes_into_bits};
+
+use bit_vec::BitVec;
 
 lazy_static! {
     pub static ref JJ_PARAMS: JubjubBls12 = JubjubBls12::new();
@@ -66,6 +69,17 @@ pub fn pedersen_compression(bits: &mut [bool], data_len: usize) {
     }
 }
 
+pub fn pedersen_compression_x(bytes: &[u8], out: &mut Vec<u8>) {
+    let reversed_bytes = bytes.iter().rev().map(|x| *x).collect::<Vec<u8>>();
+    let bit_iterator = BitVec::from_bytes(&reversed_bytes);
+    let reversed = bit_iterator.iter().rev();
+
+    let (x, _) =
+        pedersen_hash::<Bls12, _>(Personalization::NoteCommitment, reversed, &JJ_PARAMS).into_xy();
+    let x: FrRepr = x.into();
+    x.write_le(out).expect("failed to write result hash");
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -74,17 +88,28 @@ mod tests {
     use rand::{Rng, SeedableRng, XorShiftRng};
 
     #[test]
-    fn test_pedersen_compression() {
-        let data = bytes_into_bits(b"some bytes");
-        let mut x = vec![false; PEDERSEN_BLOCK_SIZE];
-        &x[0..data.len()].copy_from_slice(&data);
+    fn test_bit_vec_le() {
+        let bytes = b"ABC";
+        let bits = bytes_into_bits(bytes);
 
-        pedersen_compression(&mut x, data.len());
+        let reversed_bytes = bytes.iter().rev().map(|x| *x).collect::<Vec<u8>>();
+        let bit_iterator = BitVec::from_bytes(&reversed_bytes);
+        let reversed = bit_iterator.iter().rev();
+        let bits2 = reversed.collect::<Vec<bool>>();
+
+        assert_eq!(bits, bits2);
+    }
+
+    #[test]
+    fn test_pedersen_compression() {
+        let bytes = b"some bytes";
+        let mut hashed = Vec::with_capacity(32);
+        pedersen_compression_x(bytes, &mut hashed);
         let expected = vec![
             213, 235, 66, 156, 7, 85, 177, 39, 249, 31, 160, 247, 29, 106, 36, 46, 225, 71, 116,
             23, 1, 89, 82, 149, 45, 189, 27, 189, 144, 98, 23, 98,
         ];
-        assert_eq!(expected, bits_to_bytes(&x));
+        assert_eq!(expected, hashed);
     }
 
     #[test]

@@ -136,12 +136,13 @@ pub fn random_merkle_path_with_value<R: Rng>(
 
     // TODO: cleanup
     let mut cur = if offset == 0 {
-        let data = bytes_into_bits(&fr_into_bytes::<Bls12>(&value));
-        let mut h = vec![false; crypto::pedersen::PEDERSEN_BLOCK_SIZE];
-        h[0..data.len()].copy_from_slice(&data);
-
-        crypto::pedersen::pedersen_compression(&mut h, data.len());
-        bytes_into_fr::<Bls12>(&bits_to_bytes(&h)).unwrap()
+        let mut out = Vec::with_capacity(32);
+        let h = crypto::pedersen::pedersen_compression_x(
+            &fr_into_bytes::<Bls12>(&value),
+            //BitIterator::new(value.into_repr()), //                &bytes_into_(&fr_into_bytes::<Bls12>(&value))
+            &mut out,
+        );
+        bytes_into_fr::<Bls12>(&out).unwrap()
     } else {
         *value
     };
