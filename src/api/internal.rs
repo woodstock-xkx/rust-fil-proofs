@@ -16,7 +16,7 @@ use sapling_crypto::jubjub::JubjubBls12;
 use std::fs::File;
 use std::io::Write;
 use std::io::{BufWriter, Read};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 type Commitment = [u8; 32];
 

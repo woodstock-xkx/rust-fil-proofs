@@ -69,7 +69,7 @@ fn pedersen_benchmark(c: &mut Criterion) {
     c.bench(
         "pedersen",
         ParameterizedBenchmark::new(
-            "non-circuit",
+            "non-circuit bytes",
             |b, bytes| {
                 let mut rng = thread_rng();
                 let data: Vec<u8> = (0..bytes * 1).map(|_| rng.gen()).collect();
@@ -79,7 +79,12 @@ fn pedersen_benchmark(c: &mut Criterion) {
                 b.iter(|| black_box(pedersen::pedersen_compression(&data, &mut out)))
             },
             params,
-        ).with_function("circuit - create proof", move |b, bytes| {
+        ).with_function("non-circuit bits", |b, bytes| {
+            let mut rng = thread_rng();
+            let mut data: Vec<bool> = (0..bytes * 8).map(|_| rng.gen()).collect();
+            let l = data.len();
+            b.iter(|| black_box(pedersen::pedersen_compression_z(&mut data, l)));
+        }).with_function("circuit - create proof", move |b, bytes| {
             b.iter(|| {
                 let mut rng = rng1.clone();
                 let data: Vec<Option<bool>> = (0..bytes * 8).map(|_| Some(rng.gen())).collect();
