@@ -7,7 +7,7 @@ use sapling_crypto::pedersen_hash::{pedersen_hash, Personalization};
 use fr32::bytes_into_frs;
 use util::{bits_to_bytes, bytes_into_bits};
 
-use bit_vec::BitVec;
+use bitvec::{self, BitSlice};
 
 lazy_static! {
     pub static ref JJ_PARAMS: JubjubBls12 = JubjubBls12::new();
@@ -29,32 +29,33 @@ pub fn pedersen_md_no_padding(data: &[u8]) -> Fr {
         "input must be a multiple of the blocksize"
     );
     let mut chunks = data.chunks(PEDERSEN_BLOCK_BYTES);
-    let mut cur: Vec<u8> = vec![0; 2 * PEDERSEN_BLOCK_BYTES];
-    cur[0..PEDERSEN_BLOCK_BYTES].copy_from_slice(chunks.nth(0).unwrap());
+    let mut cur = bitvec![LittleEndian, u8; 0; 2 * PEDERSEN_BLOCK_SIZE];
+    cur.as_mut()[0..PEDERSEN_BLOCK_BYTES].copy_from_slice(chunks.nth(0).unwrap());
 
     for block in chunks {
-        cur[PEDERSEN_BLOCK_BYTES..].copy_from_slice(block);
-        let mut res = Vec::<u8>::with_capacity(32);
-        pedersen_compression(&cur, &mut res);
-        cur[0..PEDERSEN_BLOCK_BYTES].copy_from_slice(&res);
+        cur.as_mut()[PEDERSEN_BLOCK_BYTES..].copy_from_slice(block);
+        pedersen_compression(&mut cur, 2 * PEDERSEN_BLOCK_SIZE);
     }
 
-    let frs = bytes_into_frs::<Bls12>(&cur[0..PEDERSEN_BLOCK_BYTES])
+    let frs = bytes_into_frs::<Bls12>(&cur.as_ref()[0..PEDERSEN_BLOCK_BYTES])
         .expect("pedersen must generate valid fr elements");
     assert_eq!(frs.len(), 1);
     frs[0]
 }
 
-pub fn pedersen_compression(bytes: &[u8], out: &mut Vec<u8>) {
-    //    let reversed_bytes = bytes.iter().rev().map(|x| *x).collect::<Vec<u8>>();
-    let reversed_bytes = bytes.iter().rev().cloned().collect::<Vec<u8>>();
-    let bit_iterator = BitVec::from_bytes(&reversed_bytes);
-    let reversed = bit_iterator.iter().rev();
+pub fn pedersen_compression(bits: &mut BitSlice<bitvec::LittleEndian, u8>, data_len: usize) {
+    let x: FrRepr = pedersen_hash::<Bls12, _>(
+        Personalization::NoteCommitment,
+        bits.iter().take(data_len),
+        &JJ_PARAMS,
+    ).into_xy()
+    .0
+    .into();
 
-    let (x, _) =
-        pedersen_hash::<Bls12, _>(Personalization::NoteCommitment, reversed, &JJ_PARAMS).into_xy();
-    let x: FrRepr = x.into();
-    x.write_le(out).expect("failed to write result hash");
+    // write result into target vec
+    for (i, digit) in x.as_ref().iter().enumerate() {
+        LittleEndian::write_u64(&mut bits.as_mut()[i * 8..(i + 1) * 8], *digit);
+    }
 }
 
 pub fn pedersen_md_no_padding_z(data: &[u8]) -> Fr {
@@ -88,7 +89,6 @@ pub fn pedersen_md_no_padding_z(data: &[u8]) -> Fr {
 /// bits, is the input values, which get overwritten with the result.
 pub fn pedersen_compression_z(bits: &mut [bool], data_len: usize) {
     assert!(bits.len() >= PEDERSEN_BLOCK_SIZE, "bits to small");
-
     let x: FrRepr = pedersen_hash::<Bls12, _>(
         Personalization::NoteCommitment,
         bits.iter().take(data_len).cloned(),
@@ -122,24 +122,39 @@ mod tests {
         let bytes = b"ABC";
         let bits = bytes_into_bits(bytes);
 
-        let reversed_bytes = bytes.iter().rev().map(|x| *x).collect::<Vec<u8>>();
-        let bit_iterator = BitVec::from_bytes(&reversed_bytes);
-        let reversed = bit_iterator.iter().rev();
-        let bits2 = reversed.collect::<Vec<bool>>();
+        let mut bits2 = bitvec![LittleEndian, u8; 0; bits.len()];
+        bits2.as_mut()[0..bytes.len()].copy_from_slice(&bytes[..]);
 
-        assert_eq!(bits, bits2);
+        assert_eq!(bits, bits2.iter().collect::<Vec<bool>>());
     }
 
     #[test]
     fn test_pedersen_compression() {
         let bytes = b"some bytes";
-        let mut hashed = Vec::with_capacity(32);
-        pedersen_compression(bytes, &mut hashed);
+        let mut x = bitvec![LittleEndian, u8; 0; PEDERSEN_BLOCK_SIZE];
+        x.as_mut()[0..bytes.len()].copy_from_slice(&bytes[..]);
+
+        pedersen_compression(&mut x, 8 * bytes.len());
         let expected = vec![
             213, 235, 66, 156, 7, 85, 177, 39, 249, 31, 160, 247, 29, 106, 36, 46, 225, 71, 116,
             23, 1, 89, 82, 149, 45, 189, 27, 189, 144, 98, 23, 98,
         ];
-        assert_eq!(expected, hashed);
+        assert_eq!(&expected[..], x.as_ref());
+    }
+
+    #[test]
+    fn test_pedersen_compression_z() {
+        let bytes = b"some bytes";
+        let mut x = vec![false; PEDERSEN_BLOCK_SIZE];
+        let bits = bytes_into_bits(&bytes[..]);
+        x[0..bits.len()].copy_from_slice(&bits[..]);
+
+        pedersen_compression_z(&mut x, bits.len());
+        let expected = vec![
+            213, 235, 66, 156, 7, 85, 177, 39, 249, 31, 160, 247, 29, 106, 36, 46, 225, 71, 116,
+            23, 1, 89, 82, 149, 45, 189, 27, 189, 144, 98, 23, 98,
+        ];
+        assert_eq!(expected, bits_to_bytes(&x));
     }
 
     #[test]

@@ -1,7 +1,8 @@
 #[macro_use]
 extern crate criterion;
 extern crate bellman;
-extern crate bit_vec;
+#[macro_use]
+extern crate bitvec;
 extern crate pairing;
 extern crate proofs;
 extern crate rand;
@@ -9,7 +10,6 @@ extern crate sapling_crypto;
 
 use bellman::groth16::*;
 use bellman::{Circuit, ConstraintSystem, SynthesisError};
-use bit_vec::BitVec;
 use circuit::bench::BenchCS;
 use criterion::{black_box, Criterion, ParameterizedBenchmark};
 use pairing::bls12_381::Bls12;
@@ -72,11 +72,10 @@ fn pedersen_benchmark(c: &mut Criterion) {
             "non-circuit bytes",
             |b, bytes| {
                 let mut rng = thread_rng();
-                let data: Vec<u8> = (0..bytes * 1).map(|_| rng.gen()).collect();
+                let data: Vec<u8> = (0..*bytes).map(|_| rng.gen()).collect();
+                let mut out = bitvec![LittleEndian, u8; 0; *bytes * 8];
 
-                let mut out = Vec::with_capacity(32);
-
-                b.iter(|| black_box(pedersen::pedersen_compression(&data, &mut out)))
+                b.iter(|| black_box(pedersen::pedersen_compression(&mut out, bytes * 8)))
             },
             params,
         ).with_function("non-circuit bits", |b, bytes| {
