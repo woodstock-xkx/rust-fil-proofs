@@ -3,7 +3,7 @@ version: 2
 jobs:
   cargo_fetch:
     docker:
-      - image: clwk/rust:latest
+      - image: dignifiedquire/rust:latest
     working_directory: /mnt/crate
     steps:
       - checkout
@@ -26,7 +26,7 @@ jobs:
             - /root/.rustup
   test:
     docker:
-      - image: clwk/rust:latest
+      - image: dignifiedquire/rust:latest
     working_directory: /mnt/crate
     steps:
       - checkout
@@ -54,7 +54,7 @@ jobs:
             - target/debug/*
   test_release:
     docker:
-      - image: clwk/rust:latest
+      - image: dignifiedquire/rust:latest
     working_directory: /mnt/crate
     steps:
       - checkout
@@ -73,7 +73,7 @@ jobs:
             - /root/.filecoin-parameter-cache
   test_nightly:
     docker:
-      - image: clwk/rust:latest
+      - image: dignifiedquire/rust:latest
     working_directory: /mnt/crate
     steps:
       - checkout
@@ -91,7 +91,7 @@ jobs:
           no_output_timeout: 15m
   rustfmt:
     docker:
-      - image: clwk/rust:latest
+      - image: dignifiedquire/rust:latest
     working_directory: /mnt/crate
     steps:
       - checkout
@@ -106,7 +106,7 @@ jobs:
 
   clippy:
     docker:
-      - image: clwk/rust:latest
+      - image: dignifiedquire/rust:latest
     working_directory: /mnt/crate
     steps:
       - checkout
