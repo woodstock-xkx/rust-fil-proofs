@@ -8,7 +8,7 @@ use proof::ProofScheme;
 use sapling_crypto::circuit::{boolean, multipack, num, pedersen_hash};
 use sapling_crypto::jubjub::{JubjubBls12, JubjubEngine};
 
-/// Proof of retrievability.
+/// Merkle Inclusion Proof
 ///
 /// # Fields
 ///
@@ -18,14 +18,14 @@ use sapling_crypto::jubjub::{JubjubBls12, JubjubEngine};
 /// * `root` - The merkle root of the tree.
 ///
 
-pub struct PoRCircuit<'a, E: JubjubEngine> {
+pub struct InclusionProofCircuit<'a, E: JubjubEngine> {
     params: &'a E::Params,
     value: Option<E::Fr>,
     auth_path: Vec<Option<(E::Fr, bool)>>,
     root: Option<E::Fr>,
 }
 
-pub struct PoRCompound {}
+pub struct InclusionProofCompound {}
 
 pub fn challenge_into_auth_path_bits(challenge: usize, leaves: usize) -> Vec<bool> {
     let height = graph_height(leaves);
@@ -39,7 +39,7 @@ pub fn challenge_into_auth_path_bits(challenge: usize, leaves: usize) -> Vec<boo
 }
 
 impl<E: JubjubEngine, C: Circuit<E>, P: ParameterSetIdentifier> CacheableParameters<E, C, P>
-    for PoRCompound
+    for InclusionProofCompound
 {
     fn cache_prefix() -> String {
         String::from("proof-of-retrievability")
@@ -47,14 +47,16 @@ impl<E: JubjubEngine, C: Circuit<E>, P: ParameterSetIdentifier> CacheableParamet
 }
 
 // can only implment for Bls12 because merklepor is not generic over the engine.
-impl<'a> CompoundProof<'a, Bls12, MerklePoR, PoRCircuit<'a, Bls12>> for PoRCompound {
+impl<'a> CompoundProof<'a, Bls12, MerklePoR, InclusionProofCircuit<'a, Bls12>>
+    for InclusionProofCompound
+{
     fn circuit<'b>(
         public_inputs: &<MerklePoR as ProofScheme>::PublicInputs,
         proof: &'b <MerklePoR as ProofScheme>::Proof,
         _public_params: &'b <MerklePoR as ProofScheme>::PublicParams,
         engine_params: &'a JubjubBls12,
-    ) -> PoRCircuit<'a, Bls12> {
-        PoRCircuit::<Bls12> {
+    ) -> InclusionProofCircuit<'a, Bls12> {
+        InclusionProofCircuit::<Bls12> {
             params: engine_params,
             value: Some(proof.data),
             auth_path: proof.proof.as_options(),
@@ -82,7 +84,7 @@ impl<'a> CompoundProof<'a, Bls12, MerklePoR, PoRCircuit<'a, Bls12>> for PoRCompo
     }
 }
 
-impl<'a, E: JubjubEngine> Circuit<E> for PoRCircuit<'a, E> {
+impl<'a, E: JubjubEngine> Circuit<E> for InclusionProofCircuit<'a, E> {
     /// # Public Inputs
     ///
     /// This circuit expects the following public inputs.
@@ -205,7 +207,7 @@ pub fn make_circuit<E: JubjubEngine, CS: ConstraintSystem<E>>(
     Ok(())
 }
 
-impl<'a, E: JubjubEngine> PoRCircuit<'a, E> {
+impl<'a, E: JubjubEngine> InclusionProofCircuit<'a, E> {
     pub fn synthesize<CS>(
         mut cs: CS,
         params: &E::Params,
@@ -217,7 +219,7 @@ impl<'a, E: JubjubEngine> PoRCircuit<'a, E> {
         E: JubjubEngine,
         CS: ConstraintSystem<E>,
     {
-        let por = PoRCircuit::<E> {
+        let por = InclusionProofCircuit::<E> {
             params,
             value,
             auth_path,
@@ -264,7 +266,7 @@ mod tests {
                 vanilla_params: &merklepor::SetupParams { lambda, leaves },
                 engine_params: &JubjubBls12::new(),
             };
-            let public_params = PoRCompound::setup(&setup_params).expect("setup failed");
+            let public_params = InclusionProofCompound::setup(&setup_params).expect("setup failed");
 
             let private_inputs = merklepor::PrivateInputs {
                 tree: &tree,
@@ -277,16 +279,22 @@ mod tests {
                 ).expect("failed to create Fr from node data"),
             };
 
-            let proof = PoRCompound::prove(&public_params, &public_inputs, &private_inputs)
-                .expect("failed while proving");
+            let proof =
+                InclusionProofCompound::prove(&public_params, &public_inputs, &private_inputs)
+                    .expect("failed while proving");
 
-            let verified =
-                PoRCompound::verify(&public_params.vanilla_params, &public_inputs, proof)
-                    .expect("failed while verifying");
+            let verified = InclusionProofCompound::verify(
+                &public_params.vanilla_params,
+                &public_inputs,
+                proof,
+            ).expect("failed while verifying");
             assert!(verified);
 
-            let (circuit, inputs) =
-                PoRCompound::circuit_for_test(&public_params, &public_inputs, &private_inputs);
+            let (circuit, inputs) = InclusionProofCompound::circuit_for_test(
+                &public_params,
+                &public_inputs,
+                &private_inputs,
+            );
 
             let mut cs = TestConstraintSystem::new();
 
@@ -343,7 +351,7 @@ mod tests {
 
             let mut cs = TestConstraintSystem::<Bls12>::new();
 
-            let por = PoRCircuit::<Bls12> {
+            let por = InclusionProofCircuit::<Bls12> {
                 params,
                 value: Some(proof.data),
                 auth_path: proof.proof.as_options(),

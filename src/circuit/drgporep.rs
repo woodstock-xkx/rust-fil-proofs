@@ -4,8 +4,8 @@ use sapling_crypto::circuit::boolean::{self, Boolean};
 use sapling_crypto::circuit::{multipack, num};
 use sapling_crypto::jubjub::JubjubEngine;
 
+use circuit::inclusion_proof::{self, InclusionProofCompound};
 use circuit::kdf::kdf;
-use circuit::por::{self, PoRCompound};
 use circuit::sloth;
 use compound_proof::CompoundProof;
 use drgporep::DrgPoRep;
@@ -148,8 +148,10 @@ where
                         commitment: comm_r,
                         challenge: node,
                     };
-                    let por_inputs =
-                        PoRCompound::generate_public_inputs(&por_pub_inputs, &por_pub_params);
+                    let por_inputs = InclusionProofCompound::generate_public_inputs(
+                        &por_pub_inputs,
+                        &por_pub_params,
+                    );
                     input.extend(por_inputs);
                 }
 
@@ -157,8 +159,10 @@ where
                     commitment: comm_d,
                     challenge: *challenge,
                 };
-                let por_inputs =
-                    PoRCompound::generate_public_inputs(&por_pub_inputs, &por_pub_params);
+                let por_inputs = InclusionProofCompound::generate_public_inputs(
+                    &por_pub_inputs,
+                    &por_pub_params,
+                );
                 input.extend(por_inputs);
 
                 input
@@ -315,7 +319,7 @@ impl<'a, E: JubjubEngine> Circuit<E> for DrgPoRepCircuit<'a, E> {
 
             assert_eq!(data_node_path.len(), replica_node_path.len());
 
-            por::make_circuit(
+            inclusion_proof::make_circuit(
                 cs.namespace(|| "replica_node merkle proof"),
                 params,
                 *replica_node,
@@ -326,7 +330,7 @@ impl<'a, E: JubjubEngine> Circuit<E> for DrgPoRepCircuit<'a, E> {
             // validate each replica_parents merkle proof
             {
                 for i in 0..replica_parents.len() {
-                    por::make_circuit(
+                    inclusion_proof::make_circuit(
                         cs.namespace(|| format!("replica parent: {}", i)),
                         params,
                         replica_parents[i],
@@ -337,7 +341,7 @@ impl<'a, E: JubjubEngine> Circuit<E> for DrgPoRepCircuit<'a, E> {
             }
 
             // validate data node commitment
-            por::make_circuit(
+            inclusion_proof::make_circuit(
                 cs.namespace(|| "data node commitment"),
                 params,
                 *data_node,
