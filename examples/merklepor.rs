@@ -15,6 +15,7 @@ use sapling_crypto::jubjub::JubjubBls12;
 
 use proofs::circuit;
 use proofs::circuit::bench::BenchCS;
+use proofs::circuit::test::TestConstraintSystem;
 use proofs::example_helper::Example;
 use proofs::test_helper::random_merkle_path;
 
@@ -61,6 +62,36 @@ impl MerklePorApp {
         };
 
         let mut cs = BenchCS::<Bls12>::new();
+        c.synthesize(&mut cs).expect("failed to synthesize circuit");
+        cs
+    }
+
+    fn create_test_circuit<R: Rng>(
+        &mut self,
+        rng: &mut R,
+        engine_params: &JubjubBls12,
+        tree_depth: usize,
+        challenge_count: usize,
+        _leaves: usize,
+        _lambda: usize,
+        _m: usize,
+        _sloth_iter: usize,
+    ) -> TestConstraintSystem<Bls12> {
+        let (auth_path, leaf, root) = random_merkle_path(rng, tree_depth);
+        self.root = root;
+        self.leaf = leaf;
+        self.auth_paths = (0..challenge_count).map(|_| auth_path.clone()).collect();
+        let values = (0..challenge_count).map(|_| Some(self.leaf)).collect();
+
+        // create an instance of our circut (with the witness)
+        let c = circuit::ppor::ParallelProofOfRetrievability {
+            params: engine_params,
+            values,
+            auth_paths: self.auth_paths.clone(),
+            root: Some(self.root),
+        };
+
+        let mut cs = TestConstraintSystem::<Bls12>::new();
         c.synthesize(&mut cs).expect("failed to synthesize circuit");
         cs
     }
@@ -157,7 +188,8 @@ impl Example<Bls12> for MerklePorApp {
                 let mut input = vec![*values[j].unwrap()];
                 input.extend(packed_auth_path);
                 input
-            }).collect();
+            })
+            .collect();
 
         // add the root as the last one
         expected_inputs.push(self.root);
@@ -187,6 +219,31 @@ impl Example<Bls12> for MerklePorApp {
             m,
             sloth_iter,
         );
+    }
+
+    fn pretty_print<R: Rng>(
+        &mut self,
+        rng: &mut R,
+        engine_params: &JubjubBls12,
+        tree_depth: usize,
+        challenge_count: usize,
+        leaves: usize,
+        lambda: usize,
+        m: usize,
+        sloth_iter: usize,
+    ) {
+        let cs = self.create_test_circuit(
+            rng,
+            engine_params,
+            tree_depth,
+            challenge_count,
+            leaves,
+            lambda,
+            m,
+            sloth_iter,
+        );
+
+        println!("{}", cs.pretty_print());
     }
 
     fn get_num_constraints<R: Rng>(
