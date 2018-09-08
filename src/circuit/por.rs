@@ -75,8 +75,8 @@ impl<'a> CompoundProof<'a, Bls12, MerklePoR, PoRCircuit<'a, Bls12>> for PoRCompo
         let packed_auth_path = multipack::compute_multipacking::<Bls12>(&auth_path_bits);
 
         let mut inputs = Vec::new();
-        inputs.extend(packed_auth_path);
         inputs.push(pub_inputs.commitment.unwrap().into());
+        inputs.extend(packed_auth_path);
 
         inputs
     }
@@ -364,20 +364,14 @@ mod tests {
             let packed_auth_path = multipack::compute_multipacking::<Bls12>(&auth_path_bits);
 
             let mut expected_inputs = Vec::new();
-            expected_inputs.extend(packed_auth_path);
             expected_inputs.push(pub_inputs.commitment.unwrap().into());
+            expected_inputs.extend(packed_auth_path);
 
             assert_eq!(cs.get_input(0, "ONE"), Fr::one(), "wrong input 0");
 
             assert_eq!(
-                cs.get_input(1, "packed auth_path/input 0"),
+                cs.get_input(1, "root/input variable"),
                 expected_inputs[0],
-                "wrong packed_auth_path"
-            );
-
-            assert_eq!(
-                cs.get_input(2, "root/input variable"),
-                expected_inputs[1],
                 "wrong root input"
             );
 
