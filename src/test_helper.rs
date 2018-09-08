@@ -83,6 +83,7 @@ pub fn fake_drgpoprep_proof<R: Rng>(
     let subtree_root: Fr = subtree.root().into();
     let subtree_depth = subtree.height() - 1; // .height() inludes the leaf
     let remaining_depth = tree_depth - subtree_depth;
+    println!("{} {} {}", subtree_depth, remaining_depth, tree_depth);
     let (remaining_path, replica_root) =
         random_merkle_path_with_value(rng, remaining_depth, &subtree_root, remaining_depth);
 
@@ -140,7 +141,7 @@ pub fn random_merkle_path_with_value<R: Rng>(
     } else {
         *value
     };
-
+    println!("tree_depth: {}", tree_depth);
     for (i, p) in auth_path.clone().into_iter().enumerate() {
         let (uncle, is_right) = p.unwrap();
         let mut lhs = cur;

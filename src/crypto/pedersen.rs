@@ -1,11 +1,10 @@
+use bitvec::{self, BitVec};
 use pairing::bls12_381::{Bls12, Fr, FrRepr};
 use pairing::PrimeFieldRepr;
 use sapling_crypto::jubjub::JubjubBls12;
-use sapling_crypto::pedersen_hash::{pedersen_hash, Personalization};
 
+use crypto::hash::{pedersen_hash, Personalization};
 use fr32::bytes_into_frs;
-
-use bitvec::{self, BitVec};
 
 lazy_static! {
     pub static ref JJ_PARAMS: JubjubBls12 = JubjubBls12::new();
