@@ -336,6 +336,7 @@ pub trait Example<'a, C: Circuit<Bls12>>: Default {
                 Arg::with_name("size")
                     .required(true)
                     .long("size")
+                    .default_value("1")
                     .help("The data size in KB")
                     .takes_value(true),
             )
