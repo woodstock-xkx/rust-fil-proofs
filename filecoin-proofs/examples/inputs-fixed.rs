@@ -31,7 +31,6 @@ impl<'a> Circuit<Bls12> for InputsFixed<'a, Bls12> {
             let cs = &mut cs.namespace(|| format!("{}", i));
 
             let value_num = num::AllocatedNum::alloc(cs.namespace(|| "value"), || Ok(value))?;
-            value_num.inputize(cs.namespace(|| "input"))?;
 
             let mut value_bits = value_num.into_bits_le(cs.namespace(|| "value bits"))?;
 
