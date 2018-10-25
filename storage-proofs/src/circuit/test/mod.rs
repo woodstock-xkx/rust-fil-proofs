@@ -172,11 +172,11 @@ impl<E: Engine> TestConstraintSystem<E> {
         let mut s = String::new();
 
         for input in &self.inputs {
-            writeln!(s, "{}", input.1).unwrap();
+            writeln!(s, "INPUT {}", input.1).unwrap();
         }
         write!(s, "\n\n").unwrap();
         for aux in &self.aux {
-            writeln!(s, "{}", aux.1).unwrap();
+            writeln!(s, "AUX {}", aux.1).unwrap();
         }
         write!(s, "\n\n").unwrap();
 
