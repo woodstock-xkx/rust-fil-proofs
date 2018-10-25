@@ -16,16 +16,14 @@ use sapling_crypto::jubjub::{JubjubBls12, JubjubEngine};
 
 use storage_proofs::example_helper::Example;
 
-// TODO: figure out how to make this dynamic on the inputs
-const NUM_VALUES: usize = 100;
-
 struct InputsFixed<'a, E: JubjubEngine> {
     params: &'a E::Params,
+    num_values: usize,
 }
 
 impl<'a> Circuit<Bls12> for InputsFixed<'a, Bls12> {
     fn synthesize<CS: ConstraintSystem<Bls12>>(self, cs: &mut CS) -> Result<(), SynthesisError> {
-        let values = (0..NUM_VALUES).map(|i| Fr::from_repr((i as u64).into()).unwrap());
+        let values = (0..self.num_values).map(|i| Fr::from_repr((i as u64).into()).unwrap());
 
         for (i, value) in values.enumerate() {
             let cs = &mut cs.namespace(|| format!("{}", i));
@@ -65,7 +63,7 @@ impl<'a> Example<'a, InputsFixed<'a, Bls12>> for InputsFixedApp {
         rng: &mut R,
         jubjub_params: &'a JubjubBls12,
         _tree_depth: usize,
-        _challenge_count: usize,
+        challenge_count: usize,
         _lambda: usize,
         _m: usize,
         _sloth_iter: usize,
@@ -73,6 +71,7 @@ impl<'a> Example<'a, InputsFixed<'a, Bls12>> for InputsFixedApp {
         generate_random_parameters::<Bls12, _, _>(
             InputsFixed {
                 params: jubjub_params,
+                num_values: challenge_count,
             },
             rng,
         )
@@ -88,7 +87,7 @@ impl<'a> Example<'a, InputsFixed<'a, Bls12>> for InputsFixedApp {
         _rng: &mut R,
         engine_params: &'a JubjubBls12,
         _tree_depth: usize,
-        _challenge_count: usize,
+        challenge_count: usize,
         _leaves: usize,
         _lambda: usize,
         _m: usize,
@@ -96,6 +95,7 @@ impl<'a> Example<'a, InputsFixed<'a, Bls12>> for InputsFixedApp {
     ) -> InputsFixed<'a, Bls12> {
         InputsFixed {
             params: engine_params,
+            num_values: challenge_count,
         }
     }
 
