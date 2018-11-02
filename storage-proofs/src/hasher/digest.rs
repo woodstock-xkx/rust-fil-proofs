@@ -2,10 +2,17 @@ use std::fmt;
 use std::hash::Hasher as StdHasher;
 use std::marker::PhantomData;
 
+use bellman::{ConstraintSystem, SynthesisError};
+use byteorder::{LittleEndian, WriteBytesExt};
 use merkle_light::hash::{Algorithm, Hashable};
 use pairing::bls12_381::{Bls12, Fr, FrRepr};
 use pairing::{PrimeField, PrimeFieldRepr};
 use rand::{Rand, Rng};
+use sapling_crypto::circuit::blake2s::blake2s as blake2s_circuit;
+use sapling_crypto::circuit::boolean::{AllocatedBit, Boolean};
+use sapling_crypto::circuit::multipack;
+use sapling_crypto::circuit::num::AllocatedNum;
+use sapling_crypto::jubjub::JubjubEngine;
 use sha2::Digest;
 
 use super::{Domain, HashFunction, Hasher};
@@ -123,8 +130,12 @@ impl From<Fr> for DigestDomain {
 
 impl From<DigestDomain> for Fr {
     fn from(val: DigestDomain) -> Self {
+        let mut raw = val.0;
+        // strip last two bits, to make them stay in Fr
+        raw[31] &= 0b0011_1111;
+
         let mut res = FrRepr::default();
-        res.read_le(&val.0[0..32]).unwrap();
+        res.read_le(&raw[0..32]).unwrap();
 
         Fr::from_repr(res).unwrap()
     }
@@ -165,6 +176,53 @@ impl<D: Digester> HashFunction<DigestDomain> for DigestFunction<D> {
 
         res
     }
+
+    // TODO: correct hash circuit
+    fn hash_node_circuit<E: JubjubEngine, CS: ConstraintSystem<E>>(
+        mut cs: CS,
+        left: Vec<Boolean>,
+        right: Vec<Boolean>,
+        height: usize,
+        _params: &E::Params,
+    ) -> ::std::result::Result<AllocatedNum<E>, SynthesisError> {
+        let mut preimage: Vec<Boolean> = vec![];
+        let mut height_bytes = vec![];
+        height_bytes
+            .write_u64::<LittleEndian>(height as u64)
+            .expect("failed to write height");
+
+        preimage.extend(
+            multipack::bytes_to_bits_le(&height_bytes)
+                .iter()
+                .enumerate()
+                .map(|(i, b)| {
+                    AllocatedBit::alloc(cs.namespace(|| format!("height_bit {}", i)), Some(*b))
+                        .map(Boolean::Is)
+                })
+                .collect::<::std::result::Result<Vec<Boolean>, _>>()?,
+        );
+        preimage.extend(left);
+        preimage.extend(right);
+
+        let personalization = vec![0u8; 8];
+
+        // pad data, blake2s_circuit expects a multiple of 8
+        while preimage.len() % 8 != 0 {
+            preimage.push(Boolean::Constant(false));
+        }
+
+        let alloc_bits = blake2s_circuit(cs.namespace(|| "hash"), &preimage[..], &personalization)?;
+
+        let bits = alloc_bits
+            .iter()
+            .map(|v| v.get_value().unwrap())
+            .collect::<Vec<bool>>();
+
+        // TODO: figure out if we can avoid this
+        let frs = multipack::compute_multipacking::<E>(&bits);
+
+        AllocatedNum::<E>::alloc(cs.namespace(|| "num"), || Ok(frs[0]))
+    }
 }
 
 impl<D: Digester> Algorithm<DigestDomain> for DigestFunction<D> {
@@ -185,7 +243,7 @@ impl<D: Digester> Algorithm<DigestDomain> for DigestFunction<D> {
     }
 
     fn node(&mut self, left: DigestDomain, right: DigestDomain, height: usize) -> DigestDomain {
-        height.hash(self);
+        (height as u64).hash(self);
 
         left.hash(self);
         right.hash(self);

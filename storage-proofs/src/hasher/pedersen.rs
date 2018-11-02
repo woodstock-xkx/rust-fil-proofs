@@ -1,10 +1,15 @@
 use std::hash::Hasher as StdHasher;
 
+use bellman::{ConstraintSystem, SynthesisError};
 use bitvec::{self, BitVec};
 use merkle_light::hash::{Algorithm as LightAlgorithm, Hashable};
 use pairing::bls12_381::{Bls12, Fr, FrRepr};
 use pairing::{PrimeField, PrimeFieldRepr};
 use rand::{Rand, Rng};
+use sapling_crypto::circuit::boolean::Boolean;
+use sapling_crypto::circuit::num::AllocatedNum;
+use sapling_crypto::circuit::pedersen_hash::pedersen_hash as pedersen_hash_circuit;
+use sapling_crypto::jubjub::JubjubEngine;
 use sapling_crypto::pedersen_hash::{pedersen_hash, Personalization};
 
 use super::{Domain, HashFunction, Hasher};
@@ -132,6 +137,25 @@ impl StdHasher for PedersenFunction {
 impl HashFunction<PedersenDomain> for PedersenFunction {
     fn hash(data: &[u8]) -> PedersenDomain {
         pedersen::pedersen_md_no_padding(data).into()
+    }
+
+    fn hash_node_circuit<E: JubjubEngine, CS: ConstraintSystem<E>>(
+        cs: CS,
+        left: Vec<Boolean>,
+        right: Vec<Boolean>,
+        height: usize,
+        params: &E::Params,
+    ) -> ::std::result::Result<AllocatedNum<E>, SynthesisError> {
+        let mut preimage: Vec<Boolean> = vec![];
+        preimage.extend(left);
+        preimage.extend(right);
+
+        Ok(
+            pedersen_hash_circuit(cs, Personalization::MerkleTree(height), &preimage, params)?
+                .get_x()
+                .clone()
+                .into(),
+        )
     }
 }
 

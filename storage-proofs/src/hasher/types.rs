@@ -1,7 +1,12 @@
-use error::Result;
+use bellman::{ConstraintSystem, SynthesisError};
 use merkle_light::hash::{Algorithm as LightAlgorithm, Hashable as LightHashable};
 use pairing::bls12_381::Fr;
 use rand::Rand;
+use sapling_crypto::circuit::boolean::Boolean;
+use sapling_crypto::circuit::num::AllocatedNum;
+use sapling_crypto::jubjub::JubjubEngine;
+
+use error::Result;
 
 pub trait Domain:
     Ord
@@ -28,6 +33,13 @@ pub trait HashFunction<T: Domain>:
     Clone + ::std::fmt::Debug + Eq + Send + Sync + LightAlgorithm<T>
 {
     fn hash(data: &[u8]) -> T;
+    fn hash_node_circuit<E: JubjubEngine, CS: ConstraintSystem<E>>(
+        cs: CS,
+        left: Vec<Boolean>,
+        right: Vec<Boolean>,
+        height: usize,
+        params: &E::Params,
+    ) -> ::std::result::Result<AllocatedNum<E>, SynthesisError>;
 
     fn hash_leaf(data: &LightHashable<Self>) -> T {
         let mut a = Self::default();

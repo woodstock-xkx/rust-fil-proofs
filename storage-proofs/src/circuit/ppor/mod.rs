@@ -1,8 +1,12 @@
+use std::marker::PhantomData;
+
 use bellman::{Circuit, ConstraintSystem, SynthesisError};
-use sapling_crypto::circuit::{boolean, multipack, num, pedersen_hash};
+use sapling_crypto::circuit::{boolean, multipack, num};
 use sapling_crypto::jubjub::JubjubEngine;
 
 use circuit::constraint;
+use hasher::{HashFunction, Hasher};
+
 /// This is an instance of the `ParallelProofOfRetrievability` circuit.
 ///
 /// # Public Inputs
@@ -13,7 +17,7 @@ use circuit::constraint;
 ///   * [0] - packed version of `value` as bits. (might be more than one Fr)
 ///   * [1] - packed version of the `is_right` components of the auth_path.
 ///   * [2] - the merkle root of the tree.
-pub struct ParallelProofOfRetrievability<'a, E: JubjubEngine> {
+pub struct ParallelProofOfRetrievability<'a, E: JubjubEngine, H: Hasher> {
     /// Paramters for the engine.
     pub params: &'a E::Params,
 
@@ -25,9 +29,11 @@ pub struct ParallelProofOfRetrievability<'a, E: JubjubEngine> {
 
     /// The root of the underyling merkle tree.
     pub root: Option<E::Fr>,
+
+    _h: PhantomData<H>,
 }
 
-impl<'a, E: JubjubEngine> Circuit<E> for ParallelProofOfRetrievability<'a, E> {
+impl<'a, E: JubjubEngine, H: Hasher> Circuit<E> for ParallelProofOfRetrievability<'a, E, H> {
     fn synthesize<CS: ConstraintSystem<E>>(self, cs: &mut CS) -> Result<(), SynthesisError> {
         assert_eq!(self.values.len(), self.auth_paths.len());
 
@@ -82,23 +88,17 @@ impl<'a, E: JubjubEngine> Circuit<E> for ParallelProofOfRetrievability<'a, E> {
                     &cur_is_right,
                 )?;
 
-                // We don't need to be strict, because the function is
-                // collision-resistant. If the prover witnesses a congruency,
-                // they will be unable to find an authentication path in the
-                // tree with high probability.
-                let mut preimage = vec![];
-                preimage.extend(xl.into_bits_le(cs.namespace(|| "xl into bits"))?);
-                preimage.extend(xr.into_bits_le(cs.namespace(|| "xr into bits"))?);
+                let xl_bits = xl.into_bits_le(cs.namespace(|| "xl into bits"))?;
+                let xr_bits = xr.into_bits_le(cs.namespace(|| "xr into bits"))?;
 
                 // Compute the new subtree value
-                cur = pedersen_hash::pedersen_hash(
+                cur = H::Function::hash_node_circuit::<E, _>(
                     cs.namespace(|| "computation of pedersen hash"),
-                    pedersen_hash::Personalization::MerkleTree(i),
-                    &preimage,
+                    xl_bits,
+                    xr_bits,
+                    i,
                     params,
-                )?
-                .get_x()
-                .clone(); // Injective encoding
+                )?;
 
                 auth_path_bits.push(cur_is_right);
             }
@@ -122,20 +122,37 @@ impl<'a, E: JubjubEngine> Circuit<E> for ParallelProofOfRetrievability<'a, E> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use pairing::bls12_381::*;
+    use pairing::Field;
+    use rand::{Rng, SeedableRng, XorShiftRng};
+    use sapling_crypto::jubjub::JubjubBls12;
+
     use circuit::test::*;
     use drgraph::{new_seed, BucketGraph, Graph};
     use fr32::{bytes_into_fr, fr_into_bytes};
-    use hasher::pedersen::*;
+    use hasher::{Blake2sHasher, Hasher, PedersenHasher, Sha256Hasher};
     use merklepor;
-    use pairing::bls12_381::*;
-    use pairing::Field;
     use proof::ProofScheme;
-    use rand::{Rng, SeedableRng, XorShiftRng};
-    use sapling_crypto::jubjub::JubjubBls12;
+
     use util::data_at_node;
 
     #[test]
-    fn test_parallel_por_input_circuit_with_bls12_381() {
+    fn parallel_por_input_circuit_with_bls12_381_pedersen() {
+        test_parallel_por_input_circuit_with_bls12_381::<PedersenHasher>(88497);
+    }
+
+    #[test]
+    fn parallel_por_input_circuit_with_bls12_381_blake2s() {
+        test_parallel_por_input_circuit_with_bls12_381::<Blake2sHasher>(88497);
+    }
+
+    #[test]
+    fn parallel_por_input_circuit_with_bls12_381_sha256() {
+        test_parallel_por_input_circuit_with_bls12_381::<Sha256Hasher>(88497);
+    }
+
+    fn test_parallel_por_input_circuit_with_bls12_381<H: Hasher>(num_constraints: usize) {
         let params = &JubjubBls12::new();
         let rng = &mut XorShiftRng::from_seed([0x3dbe6259, 0x8d313d76, 0x3237db17, 0xe5bc0654]);
 
@@ -143,12 +160,14 @@ mod tests {
         let lambda = 32;
         let pub_params = merklepor::PublicParams { lambda, leaves };
 
-        for _ in 0..5 {
+        for _ in 0..1
+        /* 5*/
+        {
             let data: Vec<u8> = (0..leaves)
                 .flat_map(|_| fr_into_bytes::<Bls12>(&rng.gen()))
                 .collect();
 
-            let graph = BucketGraph::<PedersenHasher>::new(leaves, 6, 0, new_seed());
+            let graph = BucketGraph::<H>::new(leaves, 6, 0, new_seed());
             let tree = graph.merkle_tree(data.as_slice(), lambda).unwrap();
 
             let pub_inputs: Vec<_> = (0..leaves)
@@ -159,7 +178,7 @@ mod tests {
                 .collect();
             let priv_inputs: Vec<_> = (0..leaves)
                 .map(|i| {
-                    merklepor::PrivateInputs::<PedersenHasher>::new(
+                    merklepor::PrivateInputs::<H>::new(
                         bytes_into_fr::<Bls12>(
                             data_at_node(
                                 data.as_slice(),
@@ -177,24 +196,16 @@ mod tests {
 
             let proofs: Vec<_> = (0..leaves)
                 .map(|i| {
-                    merklepor::MerklePoR::<PedersenHasher>::prove(
-                        &pub_params,
-                        &pub_inputs[i],
-                        &priv_inputs[i],
-                    )
-                    .unwrap()
+                    merklepor::MerklePoR::<H>::prove(&pub_params, &pub_inputs[i], &priv_inputs[i])
+                        .unwrap()
                 })
                 .collect();
 
             for i in 0..leaves {
                 // make sure it verifies
                 assert!(
-                    merklepor::MerklePoR::<PedersenHasher>::verify(
-                        &pub_params,
-                        &pub_inputs[i],
-                        &proofs[i]
-                    )
-                    .unwrap(),
+                    merklepor::MerklePoR::<H>::verify(&pub_params, &pub_inputs[i], &proofs[i])
+                        .unwrap(),
                     "failed to verify merklepor proof"
                 );
             }
@@ -204,22 +215,28 @@ mod tests {
 
             let mut cs = TestConstraintSystem::<Bls12>::new();
 
-            let instance = ParallelProofOfRetrievability {
+            let instance = ParallelProofOfRetrievability::<_, H> {
                 params,
                 values,
                 auth_paths,
                 root: Some(tree.root().into()),
+                _h: PhantomData,
             };
 
             instance
                 .synthesize(&mut cs)
                 .expect("failed to synthesize circuit");
 
-            assert!(cs.is_satisfied(), "constraints not satisfied");
-
             assert_eq!(cs.num_inputs(), 34, "wrong number of inputs");
-            assert_eq!(cs.num_constraints(), 88497, "wrong number of constraints");
             assert_eq!(cs.get_input(0, "ONE"), Fr::one());
+
+            assert_eq!(
+                cs.num_constraints(),
+                num_constraints,
+                "wrong number of constraints"
+            );
+
+            assert!(cs.is_satisfied(), "constraints not satisfied");
         }
     }
 }
