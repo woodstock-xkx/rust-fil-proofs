@@ -131,7 +131,7 @@ mod tests {
     use circuit::test::*;
     use drgraph::{new_seed, BucketGraph, Graph};
     use fr32::{bytes_into_fr, fr_into_bytes};
-    use hasher::{Blake2sHasher, Hasher, PedersenHasher, Sha256Hasher};
+    use hasher::{Blake2sHasher, Hasher, PedersenHasher};
     use merklepor;
     use proof::ProofScheme;
 
@@ -144,12 +144,7 @@ mod tests {
 
     #[test]
     fn parallel_por_input_circuit_with_bls12_381_blake2s() {
-        test_parallel_por_input_circuit_with_bls12_381::<Blake2sHasher>(88497);
-    }
-
-    #[test]
-    fn parallel_por_input_circuit_with_bls12_381_sha256() {
-        test_parallel_por_input_circuit_with_bls12_381::<Sha256Hasher>(88497);
+        test_parallel_por_input_circuit_with_bls12_381::<Blake2sHasher>(2750449);
     }
 
     fn test_parallel_por_input_circuit_with_bls12_381<H: Hasher>(num_constraints: usize) {
@@ -227,6 +222,12 @@ mod tests {
                 .synthesize(&mut cs)
                 .expect("failed to synthesize circuit");
 
+            if !cs.is_satisfied() {
+                println!("not satisfied: {:?}", cs.which_is_unsatisfied());
+                panic!("constraints not satisfied");
+            }
+            // assert!(cs.is_satisfied(), "constraints not satisfied");
+
             assert_eq!(cs.num_inputs(), 34, "wrong number of inputs");
             assert_eq!(cs.get_input(0, "ONE"), Fr::one());
 
@@ -235,8 +236,6 @@ mod tests {
                 num_constraints,
                 "wrong number of constraints"
             );
-
-            assert!(cs.is_satisfied(), "constraints not satisfied");
         }
     }
 }

@@ -202,15 +202,16 @@ impl<D: Digester> HashFunction<DigestDomain> for DigestFunction<D> {
                 .collect::<::std::result::Result<Vec<Boolean>, _>>()?,
         );
         preimage.extend(left);
-        preimage.extend(right);
-
-        let personalization = vec![0u8; 8];
-
-        // pad data, blake2s_circuit expects a multiple of 8
         while preimage.len() % 8 != 0 {
             preimage.push(Boolean::Constant(false));
         }
 
+        preimage.extend(right);
+        while preimage.len() % 8 != 0 {
+            preimage.push(Boolean::Constant(false));
+        }
+
+        let personalization = vec![0u8; 8];
         let alloc_bits = blake2s_circuit(cs.namespace(|| "hash"), &preimage[..], &personalization)?;
 
         let bits = alloc_bits
@@ -245,8 +246,15 @@ impl<D: Digester> Algorithm<DigestDomain> for DigestFunction<D> {
     fn node(&mut self, left: DigestDomain, right: DigestDomain, height: usize) -> DigestDomain {
         (height as u64).hash(self);
 
-        left.hash(self);
-        right.hash(self);
+        let mut l = left;
+        l.0[31] &= 0b0011_1111;
+
+        let mut r = right;
+        r.0[31] &= 0b0011_1111;
+
+        l.hash(self);
+        r.hash(self);
+
         self.hash()
     }
 }
