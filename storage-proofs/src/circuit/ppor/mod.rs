@@ -151,7 +151,7 @@ mod tests {
         let params = &JubjubBls12::new();
         let rng = &mut XorShiftRng::from_seed([0x3dbe6259, 0x8d313d76, 0x3237db17, 0xe5bc0654]);
 
-        let leaves = 16;
+        let leaves = 4;
         let lambda = 32;
         let pub_params = merklepor::PublicParams { lambda, leaves };
 
@@ -226,7 +226,6 @@ mod tests {
                 println!("not satisfied: {:?}", cs.which_is_unsatisfied());
                 panic!("constraints not satisfied");
             }
-            // assert!(cs.is_satisfied(), "constraints not satisfied");
 
             assert_eq!(cs.num_inputs(), 34, "wrong number of inputs");
             assert_eq!(cs.get_input(0, "ONE"), Fr::one());

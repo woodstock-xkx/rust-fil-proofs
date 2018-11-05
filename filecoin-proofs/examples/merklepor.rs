@@ -54,10 +54,17 @@ impl<'a> Example<'a, circuit::ppor::ParallelProofOfRetrievability<'a, Bls12, Bla
         _m: usize,
         _sloth_iter: usize,
     ) -> circuit::ppor::ParallelProofOfRetrievability<'a, Bls12, Blake2sHasher> {
-        let (auth_path, leaf, root) = random_merkle_path(rng, tree_depth);
-        self.root = root;
-        self.leaf = leaf;
-        self.auth_paths = (0..challenge_count).map(|_| auth_path.clone()).collect();
+        let (auth_path, leaf, root) = random_merkle_path::<_, Blake2sHasher>(rng, tree_depth);
+        self.root = root.into();
+        self.leaf = leaf.into();
+        self.auth_paths = (0..challenge_count)
+            .map(|_| {
+                auth_path
+                    .iter()
+                    .map(|v| v.map(|(a, b)| (a.into(), b)))
+                    .collect()
+            })
+            .collect();
         let values = (0..challenge_count).map(|_| Some(self.leaf)).collect();
 
         // create an instance of our circut (with the witness)
@@ -109,10 +116,17 @@ impl<'a> Example<'a, circuit::ppor::ParallelProofOfRetrievability<'a, Bls12, Bla
         _m: usize,
         _sloth_iter: usize,
     ) -> Proof<Bls12> {
-        let (auth_path, leaf, root) = random_merkle_path(rng, tree_depth);
-        self.root = root;
-        self.leaf = leaf;
-        self.auth_paths = (0..challenge_count).map(|_| auth_path.clone()).collect();
+        let (auth_path, leaf, root) = random_merkle_path::<_, Blake2sHasher>(rng, tree_depth);
+        self.root = root.into();
+        self.leaf = leaf.into();
+        self.auth_paths = (0..challenge_count)
+            .map(|_| {
+                auth_path
+                    .iter()
+                    .map(|v| v.map(|(a, b)| (a.into(), b)))
+                    .collect()
+            })
+            .collect();
         let values = (0..challenge_count).map(|_| Some(self.leaf)).collect();
 
         // create an instance of our circut (with the witness)

@@ -53,6 +53,13 @@ pub trait HashFunction<T: Domain>:
         data.hash(&mut a);
         a.hash()
     }
+
+    fn hash_node(left: T, right: T, height: usize) -> T {
+        let mut a = Self::default();
+        a.node(left, right, height);
+
+        a.hash()
+    }
 }
 
 pub trait Hasher: Clone + ::std::fmt::Debug + Eq + Default + Send + Sync {
