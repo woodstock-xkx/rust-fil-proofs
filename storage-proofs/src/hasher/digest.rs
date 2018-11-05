@@ -213,16 +213,21 @@ impl<D: Digester> HashFunction<DigestDomain> for DigestFunction<D> {
 
         let personalization = vec![0u8; 8];
         let alloc_bits = blake2s_circuit(cs.namespace(|| "hash"), &preimage[..], &personalization)?;
+        let fr = if alloc_bits[0].get_value().is_some() {
+            let bits = alloc_bits
+                .iter()
+                .map(|v| v.get_value().unwrap())
+                .collect::<Vec<bool>>();
 
-        let bits = alloc_bits
-            .iter()
-            .map(|v| v.get_value().unwrap())
-            .collect::<Vec<bool>>();
+            // TODO: figure out if we can avoid this
+            let frs = multipack::compute_multipacking::<E>(&bits);
 
-        // TODO: figure out if we can avoid this
-        let frs = multipack::compute_multipacking::<E>(&bits);
+            Ok(frs[0])
+        } else {
+            Err(SynthesisError::AssignmentMissing)
+        };
 
-        AllocatedNum::<E>::alloc(cs.namespace(|| "num"), || Ok(frs[0]))
+        AllocatedNum::<E>::alloc(cs.namespace(|| "num"), || fr)
     }
 }
 

@@ -6,6 +6,8 @@ extern crate sapling_crypto;
 
 extern crate storage_proofs;
 
+use std::marker::PhantomData;
+
 use bellman::groth16::*;
 use pairing::bls12_381::{Bls12, Fr};
 use pairing::Field;
@@ -15,6 +17,7 @@ use sapling_crypto::jubjub::JubjubBls12;
 
 use storage_proofs::circuit;
 use storage_proofs::example_helper::Example;
+use storage_proofs::hasher::Blake2sHasher;
 use storage_proofs::test_helper::random_merkle_path;
 
 struct MerklePorApp {
@@ -33,7 +36,9 @@ impl Default for MerklePorApp {
     }
 }
 
-impl<'a> Example<'a, circuit::ppor::ParallelProofOfRetrievability<'a, Bls12>> for MerklePorApp {
+impl<'a> Example<'a, circuit::ppor::ParallelProofOfRetrievability<'a, Bls12, Blake2sHasher>>
+    for MerklePorApp
+{
     fn name() -> String {
         "Multi-Challenge MerklePor".to_string()
     }
@@ -48,7 +53,7 @@ impl<'a> Example<'a, circuit::ppor::ParallelProofOfRetrievability<'a, Bls12>> fo
         _lambda: usize,
         _m: usize,
         _sloth_iter: usize,
-    ) -> circuit::ppor::ParallelProofOfRetrievability<'a, Bls12> {
+    ) -> circuit::ppor::ParallelProofOfRetrievability<'a, Bls12, Blake2sHasher> {
         let (auth_path, leaf, root) = random_merkle_path(rng, tree_depth);
         self.root = root;
         self.leaf = leaf;
@@ -61,6 +66,7 @@ impl<'a> Example<'a, circuit::ppor::ParallelProofOfRetrievability<'a, Bls12>> fo
             values,
             auth_paths: self.auth_paths.clone(),
             root: Some(self.root),
+            _h: PhantomData,
         }
     }
 
@@ -75,11 +81,12 @@ impl<'a> Example<'a, circuit::ppor::ParallelProofOfRetrievability<'a, Bls12>> fo
         _sloth_iter: usize,
     ) -> Parameters<Bls12> {
         generate_random_parameters::<Bls12, _, _>(
-            circuit::ppor::ParallelProofOfRetrievability {
+            circuit::ppor::ParallelProofOfRetrievability::<_, Blake2sHasher> {
                 params: jubjub_params,
                 values: vec![None; challenge_count],
                 auth_paths: vec![vec![None; tree_depth]; challenge_count],
                 root: None,
+                _h: PhantomData,
             },
             rng,
         )
@@ -110,11 +117,12 @@ impl<'a> Example<'a, circuit::ppor::ParallelProofOfRetrievability<'a, Bls12>> fo
 
         // create an instance of our circut (with the witness)
         let proof = {
-            let c = circuit::ppor::ParallelProofOfRetrievability {
+            let c = circuit::ppor::ParallelProofOfRetrievability::<_, Blake2sHasher> {
                 params: engine_params,
                 values,
                 auth_paths: self.auth_paths.clone(),
                 root: Some(self.root),
+                _h: PhantomData,
             };
 
             // create groth16 proof

@@ -30,7 +30,7 @@ pub struct ParallelProofOfRetrievability<'a, E: JubjubEngine, H: Hasher> {
     /// The root of the underyling merkle tree.
     pub root: Option<E::Fr>,
 
-    _h: PhantomData<H>,
+    pub _h: PhantomData<H>,
 }
 
 impl<'a, E: JubjubEngine, H: Hasher> Circuit<E> for ParallelProofOfRetrievability<'a, E, H> {
