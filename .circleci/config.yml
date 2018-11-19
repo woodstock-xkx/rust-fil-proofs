@@ -1,6 +1,6 @@
-
 version: 2
 jobs:
+  resource_class: large
   cargo_fetch:
     docker:
       - image: dignifiedquire/rust:buster
