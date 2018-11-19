@@ -17,8 +17,8 @@ jobs:
       - run: rustup install $(cat rust-toolchain)
       - run: rustup default $(cat rust-toolchain)
       - run: rustup component add rustfmt-preview
-      - run: rustup component add rustfmt-preview --toolchain stable
       - run: rustup component add clippy-preview
+      - run: rustup component add rustfmt-preview --toolchain stable
       - run: cargo update
       - run: cargo fetch
       - persist_to_workspace:
@@ -120,7 +120,7 @@ jobs:
             - parameter-cache-{{ .Revision }}
       - run:
           name: Test (nightly)
-          command: cargo +$(cat rust-toolchain) test --verbose --frozen --all
+          command: cargo test --verbose --frozen --all
           no_output_timeout: 15m
 
   bench_nightly:
@@ -140,7 +140,7 @@ jobs:
             - parameter-cache-{{ .Revision }}
       - run:
           name: Benchmarks (nightly)
-          command: cargo +$(cat rust-toolchain) build --benches --verbose --frozen --all
+          command: cargo build --benches --verbose --frozen --all
           no_output_timeout: 15m
 
   rustfmt:
