@@ -17,6 +17,7 @@ jobs:
       - run: rustup install $(cat rust-toolchain)
       - run: rustup default $(cat rust-toolchain)
       - run: rustup component add rustfmt-preview
+      - run: rustup +stable component add rustfmt-preview
       - run: rustup component add clippy-preview
       - run: cargo update
       - run: cargo fetch
