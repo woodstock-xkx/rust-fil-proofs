@@ -1,7 +1,8 @@
+
 version: 2
 jobs:
-  resource_class: large
   cargo_fetch:
+    resource_class: large
     docker:
       - image: dignifiedquire/rust:buster
     working_directory: /mnt/crate
@@ -29,6 +30,7 @@ jobs:
             - /root/.cargo
             - /root/.rustup
   test:
+    resource_class: large
     docker:
       - image: dignifiedquire/rust:buster
     working_directory: /mnt/crate
@@ -61,6 +63,7 @@ jobs:
             - target/debug/*
 
   test_release:
+    resource_class: large
     docker:
       - image: dignifiedquire/rust:buster
     working_directory: /mnt/crate
@@ -79,6 +82,7 @@ jobs:
             cargo +stable build --examples --release --frozen --all
 
   test_ignored_release:
+    resource_class: large
     docker:
       - image: dignifiedquire/rust:buster
     working_directory: /mnt/crate
@@ -99,6 +103,7 @@ jobs:
             - /root/.filecoin-parameter-cache
 
   test_nightly:
+    resource_class: large
     docker:
       - image: dignifiedquire/rust:buster
     working_directory: /mnt/crate
@@ -118,6 +123,7 @@ jobs:
           no_output_timeout: 15m
 
   bench_nightly:
+    resource_class: large
     docker:
       - image: dignifiedquire/rust:buster
     working_directory: /mnt/crate
@@ -137,6 +143,7 @@ jobs:
           no_output_timeout: 15m
 
   rustfmt:
+    resource_class: large
     docker:
       - image: dignifiedquire/rust:buster
     working_directory: /mnt/crate
@@ -152,6 +159,7 @@ jobs:
           command: cargo fmt --all -- --check
 
   clippy:
+    resource_class: large
     docker:
       - image: dignifiedquire/rust:buster
     working_directory: /mnt/crate
