@@ -24,6 +24,8 @@ extern crate serde_cbor;
 extern crate serde_derive;
 extern crate percent_encoding;
 
+extern crate rocksdb;
+
 pub mod api;
 pub mod error;
 pub mod serde_big_array;
