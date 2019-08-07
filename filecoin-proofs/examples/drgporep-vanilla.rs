@@ -65,8 +65,6 @@ fn do_the_work<H: Hasher>(data_size: usize, m: usize, challenge_count: usize) {
     let sp = SetupParams {
         drg: DrgParams {
             nodes,
-            degree: m,
-            expansion_degree: 0,
             seed: new_seed(),
         },
         private: true,

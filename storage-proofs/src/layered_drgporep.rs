@@ -520,12 +520,7 @@ impl<'a, L: Layers> ProofScheme<'a> for L {
     type Requirements = ChallengeRequirements;
 
     fn setup(sp: &Self::SetupParams) -> Result<Self::PublicParams> {
-        let graph = L::Graph::new(
-            sp.drg.nodes,
-            sp.drg.degree,
-            sp.drg.expansion_degree,
-            sp.drg.seed,
-        );
+        let graph = L::Graph::new(sp.drg.nodes, sp.drg.seed);
 
         Ok(PublicParams::new(graph, sp.layer_challenges.clone()))
     }

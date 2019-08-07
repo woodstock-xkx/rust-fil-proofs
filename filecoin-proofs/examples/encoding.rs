@@ -90,8 +90,6 @@ where
     let sp = layered_drgporep::SetupParams {
         drg: drgporep::DrgParams {
             nodes,
-            degree: m,
-            expansion_degree,
             seed: new_seed(),
         },
         layer_challenges: LayerChallenges::new_fixed(1, 1),

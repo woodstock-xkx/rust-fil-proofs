@@ -39,7 +39,6 @@ use std::marker::PhantomData;
 /// * `data_node_path` - The path of the data node being proven.
 /// * `data_root` - The merkle root of the data.
 /// * `replica_id` - The id of the replica.
-/// * `degree` - The degree of the graph.
 ///
 //implement_drgporep!(
 //    DrgPoRepCircuit,
@@ -64,7 +63,6 @@ pub struct DrgPoRepCircuit<'a, E: JubjubEngine, H: Hasher> {
     data_nodes_paths: Vec<Vec<Option<(E::Fr, bool)>>>,
     data_root: Root<E>,
     replica_id: Option<E::Fr>,
-    degree: usize,
     private: bool,
     _h: PhantomData<H>,
 }
@@ -83,7 +81,6 @@ impl<'a, E: JubjubEngine, H: Hasher> DrgPoRepCircuit<'a, E, H> {
         data_nodes_paths: Vec<Vec<Option<(E::Fr, bool)>>>,
         data_root: Root<E>,
         replica_id: Option<E::Fr>,
-        degree: usize,
         private: bool,
     ) -> Result<(), SynthesisError>
     where
@@ -101,7 +98,6 @@ impl<'a, E: JubjubEngine, H: Hasher> DrgPoRepCircuit<'a, E, H> {
             data_nodes_paths,
             data_root,
             replica_id,
-            degree,
             private,
             _h: Default::default(),
         }
@@ -310,7 +306,6 @@ where
             data_nodes_paths,
             data_root,
             replica_id: replica_id.map(Into::into),
-            degree: public_params.graph.degree(),
             private: public_params.private,
             _h: Default::default(),
         }
@@ -345,7 +340,6 @@ where
             data_nodes_paths,
             data_root,
             replica_id: None,
-            degree: public_params.graph.degree(),
             private: public_params.private,
             _h: Default::default(),
         }
@@ -386,7 +380,6 @@ impl<'a, E: JubjubEngine, H: Hasher> Circuit<E> for DrgPoRepCircuit<'a, E, H> {
         let replica_root = self.replica_root;
         let data_root = self.data_root;
 
-        let degree = self.degree;
         let nodes = self.data_nodes.len();
 
         assert_eq!(self.replica_nodes.len(), nodes);
@@ -430,6 +423,7 @@ impl<'a, E: JubjubEngine, H: Hasher> Circuit<E> for DrgPoRepCircuit<'a, E, H> {
             let replica_parents = &self.replica_parents[i];
             let data_node = &self.data_nodes[i];
 
+            assert_eq!(replica_parents.len(), replica_parents_paths.len());
             assert_eq!(data_node_path.len(), replica_node_path.len());
             assert_eq!(replica_node.is_some(), data_node.is_some());
 
@@ -496,7 +490,6 @@ impl<'a, E: JubjubEngine, H: Hasher> Circuit<E> for DrgPoRepCircuit<'a, E, H> {
                     cs.namespace(|| "kdf"),
                     replica_id_bits.clone(),
                     parents_bits,
-                    degree,
                 )?;
 
                 let decoded = sloth::decode(cs.namespace(|| "sloth_decode"), &key, *replica_node)?;
@@ -544,7 +537,6 @@ mod tests {
         let rng = &mut XorShiftRng::from_seed([0x3dbe6259, 0x8d313d76, 0x3237db17, 0xe5bc0654]);
 
         let nodes = 12;
-        let degree = 6;
         let challenge = 2;
 
         let replica_id: Fr = rng.gen();
@@ -565,8 +557,6 @@ mod tests {
         let sp = drgporep::SetupParams {
             drg: drgporep::DrgParams {
                 nodes,
-                degree,
-                expansion_degree: 0,
                 seed: new_seed(),
             },
             private: false,
@@ -654,7 +644,6 @@ mod tests {
             vec![data_node_path],
             data_root,
             replica_id,
-            degree,
             false,
         )
         .expect("failed to synthesize circuit");
@@ -667,8 +656,8 @@ mod tests {
         }
 
         assert!(cs.is_satisfied(), "constraints not satisfied");
-        assert_eq!(cs.num_inputs(), 18, "wrong number of inputs");
-        assert_eq!(cs.num_constraints(), 130957, "wrong number of constraints");
+        assert_eq!(cs.num_inputs(), 16, "wrong number of inputs");
+        assert_eq!(cs.num_constraints(), 103813, "wrong number of constraints");
 
         assert_eq!(cs.get_input(0, "ONE"), Fr::one());
 
@@ -689,8 +678,9 @@ mod tests {
 
         // 1 GB
         let n = (1 << 30) / 32;
-        let m = 6;
         let tree_depth = graph_height(n);
+
+        let m = 6;
 
         let mut cs = TestConstraintSystem::<Bls12>::new();
         DrgPoRepCircuit::<_, PedersenHasher>::synthesize(
@@ -705,7 +695,6 @@ mod tests {
             vec![vec![Some((Fr::rand(rng), false)); tree_depth]; 1],
             Root::Val(Some(Fr::rand(rng))),
             Some(Fr::rand(rng)),
-            m,
             false,
         )
         .expect("failed to synthesize circuit");
@@ -735,7 +724,6 @@ mod tests {
         let rng = &mut XorShiftRng::from_seed([0x3dbe6259, 0x8d313d76, 0x3237db17, 0xe5bc0654]);
 
         let nodes = 5;
-        let degree = 2;
         let challenges = vec![1, 3];
 
         let replica_id: Fr = rng.gen();
@@ -748,12 +736,7 @@ mod tests {
 
         let setup_params = compound_proof::SetupParams {
             vanilla_params: &drgporep::SetupParams {
-                drg: drgporep::DrgParams {
-                    nodes,
-                    degree,
-                    expansion_degree: 0,
-                    seed,
-                },
+                drg: drgporep::DrgParams { nodes, seed },
                 private: false,
                 challenges_count: 2,
             },
@@ -785,12 +768,7 @@ mod tests {
         // This duplication is necessary so public_params don't outlive public_inputs and private_inputs.
         let setup_params = compound_proof::SetupParams {
             vanilla_params: &drgporep::SetupParams {
-                drg: drgporep::DrgParams {
-                    nodes,
-                    degree,
-                    expansion_degree: 0,
-                    seed,
-                },
+                drg: drgporep::DrgParams { nodes, seed },
                 private: false,
                 challenges_count: 2,
             },

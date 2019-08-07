@@ -3,13 +3,14 @@ use std::marker::PhantomData;
 use std::sync::{Arc, RwLock};
 
 use crate::crypto::feistel::{self, FeistelPrecomputed};
-use crate::drgraph::{BucketGraph, Graph};
+use crate::drgraph::{BucketGraph, Graph, BASE_DEGREE};
 use crate::hasher::Hasher;
 use crate::layered_drgporep::Layerable;
 use crate::parameter_cache::ParameterSetMetadata;
 use crate::settings;
 
-pub const DEFAULT_EXPANSION_DEGREE: usize = 8;
+/// The expansion degree used for ZigZag Graphs.
+pub const EXP_DEGREE: usize = 8;
 
 // Cache of node's parents.
 pub type ParentCache = HashMap<usize, Vec<usize>>;
@@ -30,7 +31,6 @@ where
     H: Hasher,
     G: Graph<H> + 'static,
 {
-    expansion_degree: usize,
     base_graph: G,
     pub reversed: bool,
     feistel_precomputed: FeistelPrecomputed,
@@ -63,13 +63,7 @@ where
     H: Hasher,
     G: Graph<H>,
 {
-    pub fn new(
-        base_graph: Option<G>,
-        nodes: usize,
-        base_degree: usize,
-        expansion_degree: usize,
-        seed: [u32; 7],
-    ) -> Self {
+    pub fn new(base_graph: Option<G>, nodes: usize, seed: [u32; 7]) -> Self {
         let cache_entries = if settings::SETTINGS.lock().unwrap().maximize_caching {
             info!("using parents cache of unlimited size",);
             nodes
@@ -80,11 +74,10 @@ where
         ZigZagGraph {
             base_graph: match base_graph {
                 Some(graph) => graph,
-                None => G::new(nodes, base_degree, 0, seed),
+                None => G::new(nodes, seed),
             },
-            expansion_degree,
             reversed: false,
-            feistel_precomputed: feistel::precompute((expansion_degree * nodes) as feistel::Index),
+            feistel_precomputed: feistel::precompute((EXP_DEGREE * nodes) as feistel::Index),
             parents_cache: Arc::new(RwLock::new([
                 HashMap::with_capacity(cache_entries),
                 HashMap::with_capacity(cache_entries),
@@ -103,7 +96,7 @@ where
     fn identifier(&self) -> String {
         format!(
             "zigzag_graph::ZigZagGraph{{expansion_degree: {} base_graph: {} }}",
-            self.expansion_degree,
+            EXP_DEGREE,
             self.base_graph.identifier()
         )
     }
@@ -127,12 +120,7 @@ pub trait ZigZag: ::std::fmt::Debug + Clone + PartialEq + Eq {
     fn reversed(&self) -> bool;
     fn expanded_parents(&self, node: usize) -> Vec<usize>;
     fn real_index(&self, i: usize) -> usize;
-    fn new_zigzag(
-        nodes: usize,
-        base_degree: usize,
-        expansion_degree: usize,
-        seed: [u32; 7],
-    ) -> Self;
+    fn new_zigzag(nodes: usize, seed: [u32; 7]) -> Self;
 }
 
 impl<Z: ZigZag> Graph<Z::BaseHasher> for Z {
@@ -141,7 +129,7 @@ impl<Z: ZigZag> Graph<Z::BaseHasher> for Z {
     }
 
     fn degree(&self) -> usize {
-        self.base_graph().degree() + self.expansion_degree()
+        BASE_DEGREE + EXP_DEGREE
     }
 
     #[inline]
@@ -186,8 +174,8 @@ impl<Z: ZigZag> Graph<Z::BaseHasher> for Z {
         self.base_graph().seed()
     }
 
-    fn new(nodes: usize, base_degree: usize, expansion_degree: usize, seed: [u32; 7]) -> Self {
-        Z::new_zigzag(nodes, base_degree, expansion_degree, seed)
+    fn new(nodes: usize, seed: [u32; 7]) -> Self {
+        Z::new_zigzag(nodes, seed)
     }
 
     fn forward(&self) -> bool {
@@ -236,25 +224,25 @@ where
     // to the index `4` that generated it earlier, corresponding to the node 2, inverting
     // in fact the child-parent relationship.
     fn correspondent(&self, node: usize, i: usize) -> usize {
-        let a = (node * self.expansion_degree) as feistel::Index + i as feistel::Index;
+        let a = (node * EXP_DEGREE) as feistel::Index + i as feistel::Index;
         let feistel_keys = &[1, 2, 3, 4];
 
         let transformed = if self.reversed {
             feistel::invert_permute(
-                self.size() as feistel::Index * self.expansion_degree as feistel::Index,
+                self.size() as feistel::Index * EXP_DEGREE as feistel::Index,
                 a,
                 feistel_keys,
                 self.feistel_precomputed,
             )
         } else {
             feistel::permute(
-                self.size() as feistel::Index * self.expansion_degree as feistel::Index,
+                self.size() as feistel::Index * EXP_DEGREE as feistel::Index,
                 a,
                 feistel_keys,
                 self.feistel_precomputed,
             )
         };
-        transformed as usize / self.expansion_degree
+        transformed as usize / EXP_DEGREE
         // Collapse the output in the matrix search space to the row of the corresponding
         // node (losing the column information, that will be regenerated later when calling
         // back this function in the `reversed` direction).
@@ -317,13 +305,8 @@ where
     type BaseHasher = H;
     type BaseGraph = G;
 
-    fn new_zigzag(
-        nodes: usize,
-        base_degree: usize,
-        expansion_degree: usize,
-        seed: [u32; 7],
-    ) -> Self {
-        Self::new(None, nodes, base_degree, expansion_degree, seed)
+    fn new_zigzag(nodes: usize, seed: [u32; 7]) -> Self {
+        Self::new(None, nodes, seed)
     }
 
     /// To zigzag a graph, we just toggle its reversed field.
@@ -344,7 +327,7 @@ where
     }
 
     fn expansion_degree(&self) -> usize {
-        self.expansion_degree
+        EXP_DEGREE
     }
 
     fn reversed(&self) -> bool {
@@ -364,7 +347,7 @@ where
             return parents;
         }
 
-        let parents: Vec<usize> = (0..self.expansion_degree)
+        let parents: Vec<usize> = (0..EXP_DEGREE)
             .filter_map(|i| {
                 let other = self.correspondent(node, i);
                 if self.reversed {
@@ -402,9 +385,7 @@ where
     G: Graph<H>,
 {
     fn eq(&self, other: &ZigZagGraph<H, G>) -> bool {
-        self.base_graph == other.base_graph
-            && self.expansion_degree == other.expansion_degree
-            && self.reversed == other.reversed
+        self.base_graph == other.base_graph && self.reversed == other.reversed
     }
 }
 
@@ -468,7 +449,7 @@ mod tests {
     }
 
     fn test_zigzag_graph_zigzags<H: 'static + Hasher>() {
-        let g = ZigZagBucketGraph::<H>::new_zigzag(50, 5, DEFAULT_EXPANSION_DEGREE, new_seed());
+        let g = ZigZagBucketGraph::<H>::new_zigzag(50, new_seed());
         let gz = g.zigzag();
 
         assert_graph_ascending(g);
@@ -492,7 +473,7 @@ mod tests {
 
     fn test_expansion<H: 'static + Hasher>() {
         // We need a graph.
-        let g = ZigZagBucketGraph::<H>::new_zigzag(25, 5, DEFAULT_EXPANSION_DEGREE, new_seed());
+        let g = ZigZagBucketGraph::<H>::new_zigzag(25, new_seed());
 
         // We're going to fully realize the expansion-graph component, in a HashMap.
         let gcache = get_all_expanded_parents(&g);

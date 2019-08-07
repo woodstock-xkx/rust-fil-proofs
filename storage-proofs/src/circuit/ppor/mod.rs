@@ -156,7 +156,7 @@ mod tests {
                 .flat_map(|_| fr_into_bytes::<Bls12>(&rng.gen()))
                 .collect();
 
-            let graph = BucketGraph::<PedersenHasher>::new(leaves, 6, 0, new_seed());
+            let graph = BucketGraph::<PedersenHasher>::new(leaves, new_seed());
             let tree = graph.merkle_tree(data.as_slice()).unwrap();
 
             let pub_inputs: Vec<_> = (0..leaves)

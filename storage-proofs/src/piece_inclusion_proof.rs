@@ -441,7 +441,7 @@ mod tests {
     ) {
         assert_eq!(node_lengths.len(), 1); // For now.
         let size = nodes * NODE_SIZE;
-        let g = BucketGraph::<H>::new(nodes, 0, 0, new_seed());
+        let g = BucketGraph::<H>::new(nodes, new_seed());
         let mut data = vec![0u8; size]; //Vec::<u8>::with_capacity(nodes);
 
         let data_size = node_lengths[0] * NODE_SIZE;

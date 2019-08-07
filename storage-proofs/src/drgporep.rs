@@ -40,11 +40,6 @@ pub struct DrgParams {
     // Number of nodes
     pub nodes: usize,
 
-    // Base degree of DRG
-    pub degree: usize,
-
-    pub expansion_degree: usize,
-
     // Random seed
     pub seed: [u32; 7],
 }
@@ -252,12 +247,7 @@ where
     type Requirements = NoRequirements;
 
     fn setup(sp: &Self::SetupParams) -> Result<Self::PublicParams> {
-        let graph = G::new(
-            sp.drg.nodes,
-            sp.drg.degree,
-            sp.drg.expansion_degree,
-            sp.drg.seed,
-        );
+        let graph = G::new(sp.drg.nodes, sp.drg.seed);
 
         Ok(PublicParams::new(graph, sp.private, sp.challenges_count))
     }
@@ -515,8 +505,6 @@ mod tests {
         let sp = SetupParams {
             drg: DrgParams {
                 nodes: data.len() / 32,
-                degree: 5,
-                expansion_degree: 0,
                 seed: new_seed(),
             },
             private: false,
@@ -568,8 +556,6 @@ mod tests {
         let sp = SetupParams {
             drg: DrgParams {
                 nodes: data.len() / 32,
-                degree: 5,
-                expansion_degree: 0,
                 seed: new_seed(),
             },
             private: false,
@@ -625,8 +611,6 @@ mod tests {
         // The loop is here in case we need to retry because of an edge case in the test design.
         loop {
             let rng = &mut XorShiftRng::from_seed([0x3dbe6259, 0x8d313d76, 0x3237db17, 0xe5bc0654]);
-            let degree = 10;
-            let expansion_degree = 0;
             let seed = new_seed();
 
             let replica_id: H::Domain = rng.gen();
@@ -640,12 +624,7 @@ mod tests {
             let challenge = i;
 
             let sp = SetupParams {
-                drg: DrgParams {
-                    nodes,
-                    degree,
-                    expansion_degree,
-                    seed,
-                },
+                drg: DrgParams { nodes, seed },
                 private: false,
                 challenges_count: 2,
             };

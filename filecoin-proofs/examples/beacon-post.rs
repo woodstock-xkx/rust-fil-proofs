@@ -75,7 +75,7 @@ fn do_the_work(
         .collect();
 
     let graphs: Vec<_> = (0..sectors_count)
-        .map(|_| BucketGraph::<PedersenHasher>::new(nodes_size, 5, 0, new_seed()))
+        .map(|_| BucketGraph::<PedersenHasher>::new(nodes_size, new_seed()))
         .collect();
 
     let trees: Vec<_> = graphs

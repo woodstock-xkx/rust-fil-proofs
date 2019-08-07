@@ -9,7 +9,6 @@ pub fn kdf<E, CS>(
     mut cs: CS,
     id: Vec<Boolean>,
     parents: Vec<Vec<Boolean>>,
-    m: usize,
 ) -> Result<num::AllocatedNum<E>, SynthesisError>
 where
     E: JubjubEngine,
@@ -21,8 +20,6 @@ where
         acc.extend(parent);
         acc
     });
-
-    assert_eq!(ciphertexts.len(), 8 * 32 * (1 + m), "invalid input length");
 
     let personalization = vec![0u8; 8];
     let alloc_bits = blake2s_circuit(cs.namespace(|| "hash"), &ciphertexts[..], &personalization)?;
@@ -81,7 +78,6 @@ mod tests {
             cs.namespace(|| "kdf"),
             id_bits.clone(),
             parents_bits.clone(),
-            m,
         )
         .expect("key derivation function failed");
 
@@ -93,7 +89,7 @@ mod tests {
             acc
         });
 
-        let expected = crypto::kdf::kdf(input_bytes.as_slice(), m);
+        let expected = crypto::kdf::kdf(input_bytes.as_slice());
 
         assert_eq!(
             expected,

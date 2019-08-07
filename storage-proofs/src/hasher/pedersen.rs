@@ -26,8 +26,8 @@ impl Hasher for PedersenHasher {
         "PedersenHasher".into()
     }
 
-    fn kdf(data: &[u8], m: usize) -> Self::Domain {
-        kdf::kdf(data, m).into()
+    fn kdf(data: &[u8]) -> Self::Domain {
+        kdf::kdf(data).into()
     }
 
     #[inline]

@@ -273,7 +273,7 @@ mod tests {
         let data: Vec<u8> = (0..leaves)
             .flat_map(|_| fr_into_bytes::<Bls12>(&rng.gen()))
             .collect();
-        let graph = BucketGraph::<PedersenHasher>::new(leaves, 16, 0, new_seed());
+        let graph = BucketGraph::<PedersenHasher>::new(leaves, new_seed());
         let tree = graph.merkle_tree(data.as_slice()).unwrap();
 
         for i in 0..3 {
@@ -366,7 +366,7 @@ mod tests {
                 .flat_map(|_| fr_into_bytes::<Bls12>(&rng.gen()))
                 .collect();
 
-            let graph = BucketGraph::<H>::new(leaves, 16, 0, new_seed());
+            let graph = BucketGraph::<H>::new(leaves, new_seed());
             let tree = graph.merkle_tree(data.as_slice()).unwrap();
 
             // -- MerklePoR
@@ -472,7 +472,7 @@ mod tests {
         let data: Vec<u8> = (0..leaves)
             .flat_map(|_| fr_into_bytes::<Bls12>(&rng.gen()))
             .collect();
-        let graph = BucketGraph::<H>::new(leaves, 16, 0, new_seed());
+        let graph = BucketGraph::<H>::new(leaves, new_seed());
         let tree = graph.merkle_tree(data.as_slice()).unwrap();
 
         for i in 0..3 {
@@ -554,7 +554,7 @@ mod tests {
                 .flat_map(|_| fr_into_bytes::<Bls12>(&rng.gen()))
                 .collect();
 
-            let graph = BucketGraph::<PedersenHasher>::new(leaves, 16, 0, new_seed());
+            let graph = BucketGraph::<PedersenHasher>::new(leaves, new_seed());
             let tree = graph.merkle_tree(data.as_slice()).unwrap();
 
             // -- MerklePoR

@@ -392,8 +392,6 @@ mod tests {
             .pedersen_hash_exp_window_size;
         let params = &JubjubBls12::new_with_window_size(window_size);
         let nodes = 5;
-        let degree = 1;
-        let expansion_degree = 2;
         let num_layers = 2;
         let layer_challenges = LayerChallenges::new_fixed(num_layers, 1);
 
@@ -413,8 +411,6 @@ mod tests {
         let sp = layered_drgporep::SetupParams {
             drg: drgporep::DrgParams {
                 nodes: n,
-                degree,
-                expansion_degree,
                 seed: new_seed(),
             },
             layer_challenges: layer_challenges.clone(),
@@ -451,8 +447,8 @@ mod tests {
 
         // End copied section.
 
-        let expected_inputs = 16;
-        let expected_constraints = 130832;
+        let expected_inputs = 36;
+        let expected_constraints = 432312;
         {
             // Verify that MetricCS returns the same metrics as TestConstraintSystem.
             let mut cs = MetricCS::<Bls12>::new();
@@ -592,8 +588,6 @@ mod tests {
             .pedersen_hash_exp_window_size;
         let params = &JubjubBls12::new_with_window_size(window_size);
         let nodes = 5;
-        let degree = 2;
-        let expansion_degree = 1;
         let num_layers = 2;
         let layer_challenges = LayerChallenges::new_tapered(num_layers, 3, num_layers, 1.0 / 3.0);
         let partition_count = 1;
@@ -617,8 +611,6 @@ mod tests {
             vanilla_params: &layered_drgporep::SetupParams {
                 drg: drgporep::DrgParams {
                     nodes: n,
-                    degree,
-                    expansion_degree,
                     seed: new_seed(),
                 },
                 layer_challenges: layer_challenges.clone(),

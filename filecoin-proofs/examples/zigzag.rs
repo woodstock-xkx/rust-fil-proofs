@@ -178,8 +178,6 @@ fn do_the_work<H: 'static>(
     let sp = layered_drgporep::SetupParams {
         drg: drgporep::DrgParams {
             nodes,
-            degree: m,
-            expansion_degree,
             seed: new_seed(),
         },
         layer_challenges: layer_challenges.clone(),

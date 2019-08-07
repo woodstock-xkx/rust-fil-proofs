@@ -5,17 +5,7 @@ use paired::bls12_381::Fr;
 use crate::fr32::bytes_into_fr_repr_safe;
 
 /// Key derivation function, based on pedersen hashing.
-pub fn kdf(data: &[u8], m: usize) -> Fr {
-    // Blake2sHasher::kdf(&data, m).into()
-
-    assert_eq!(
-        data.len(),
-        32 * (1 + m),
-        "invalid input length: data.len(): {} m: {}",
-        data.len(),
-        m
-    );
-
+pub fn kdf(data: &[u8]) -> Fr {
     let hash = Blake2s::new()
         .hash_length(32)
         .to_state()
@@ -46,15 +36,7 @@ mod tests {
         )
         .unwrap();
 
-        let res = kdf(&data, m);
+        let res = kdf(&data);
         assert_eq!(res, expected);
-    }
-
-    #[test]
-    #[should_panic]
-    fn kdf_invalid_block_len() {
-        let data = vec![2u8; 1234];
-
-        kdf(&data, 44);
     }
 }

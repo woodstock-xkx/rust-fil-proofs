@@ -235,7 +235,7 @@ mod tests {
         let data: Vec<u8> = (0..32)
             .flat_map(|_| fr_into_bytes::<Bls12>(&rng.gen()))
             .collect();
-        let graph = BucketGraph::<H>::new(32, 16, 0, new_seed());
+        let graph = BucketGraph::<H>::new(32, new_seed());
         let tree = graph.merkle_tree(data.as_slice()).unwrap();
 
         let pub_inputs = PublicInputs::<H::Domain> {
