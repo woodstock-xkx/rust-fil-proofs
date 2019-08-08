@@ -9,7 +9,7 @@ use merkletree::merkle;
 use merkletree::merkle::MmapStore;
 use merkletree::merkle::VecStore;
 use merkletree::proof;
-use paired::bls12_381::Fr;
+use algebra::fields::bls12_381::Fr;
 
 use crate::hasher::{Domain, Hasher};
 
@@ -167,7 +167,7 @@ mod tests {
 
     use crate::drgraph::new_seed;
     use crate::drgraph::{BucketGraph, Graph};
-    use crate::hasher::{Blake2sHasher, PedersenHasher, Sha256Hasher};
+    use crate::hasher::PedersenHasher;
 
     fn merklepath<H: Hasher>() {
         let g = BucketGraph::<H>::new(10, 5, 0, new_seed());
@@ -204,13 +204,13 @@ mod tests {
         merklepath::<PedersenHasher>();
     }
 
-    #[test]
-    fn merklepath_sha256() {
-        merklepath::<Sha256Hasher>();
-    }
+    // #[test]
+    // fn merklepath_sha256() {
+    //     merklepath::<Sha256Hasher>();
+    // }
 
-    #[test]
-    fn merklepath_blake2s() {
-        merklepath::<Blake2sHasher>();
-    }
+    // #[test]
+    // fn merklepath_blake2s() {
+    //     merklepath::<Blake2sHasher>();
+    // }
 }

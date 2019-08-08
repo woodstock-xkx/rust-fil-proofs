@@ -1,6 +1,8 @@
-use bellperson::ConstraintSystem;
-use fil_sapling_crypto::circuit::num;
-use paired::Engine;
+use algebra::PairingEngine as Engine;
+use snark::ConstraintSystem;
+use snark_gadgets::fields::fp::FpGadget;
+use snark_gadgets::utils::EqGadget;
+use snark_gadgets::fields::FieldGadget;
 
 /// Adds a constraint to CS, enforcing an equality relationship between the allocated numbers a and b.
 ///
@@ -8,19 +10,17 @@ use paired::Engine;
 pub fn equal<E: Engine, A, AR, CS: ConstraintSystem<E>>(
     cs: &mut CS,
     annotation: A,
-    a: &num::AllocatedNum<E>,
-    b: &num::AllocatedNum<E>,
+    a: &FpGadget<E>,
+    b: &FpGadget<E>
+//    a: &num::AllocatedNum<E>,
+//    b: &num::AllocatedNum<E>,
 ) where
     A: FnOnce() -> AR,
     AR: Into<String>,
 {
     // a * 1 = b
-    cs.enforce(
-        annotation,
-        |lc| lc + a.get_variable(),
-        |lc| lc + CS::one(),
-        |lc| lc + b.get_variable(),
-    );
+
+    a.enforce_equal(cs, b);
 }
 
 /// Adds a constraint to CS, enforcing a difference relationship between the allocated numbers a, b, and difference.
@@ -29,20 +29,18 @@ pub fn equal<E: Engine, A, AR, CS: ConstraintSystem<E>>(
 pub fn difference<E: Engine, A, AR, CS: ConstraintSystem<E>>(
     cs: &mut CS,
     annotation: A,
-    a: &num::AllocatedNum<E>,
-    b: &num::AllocatedNum<E>,
-    difference: &num::AllocatedNum<E>,
+    a: &FpGadget<E>,
+    b: &FpGadget<E>,
+    difference: &FpGadget<E>
 ) where
     A: FnOnce() -> AR,
     AR: Into<String>,
 {
+
     //    difference = a-b
     // => difference + b = a
     // => (difference + b) * 1 = a
-    cs.enforce(
-        annotation,
-        |lc| lc + difference.get_variable() + b.get_variable(),
-        |lc| lc + CS::one(),
-        |lc| lc + a.get_variable(),
-    );
+    let sum = b.add(cs.ns(|| "sum"), difference).unwrap();
+    a.enforce_equal(cs, &sum);
+
 }

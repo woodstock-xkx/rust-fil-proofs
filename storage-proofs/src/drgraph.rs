@@ -285,7 +285,7 @@ mod tests {
     use memmap::MmapOptions;
 
     use crate::drgraph::new_seed;
-    use crate::hasher::{Blake2sHasher, PedersenHasher, Sha256Hasher};
+    use crate::hasher::PedersenHasher;
 
     // Create and return an object of MmapMut backed by in-memory copy of data.
     pub fn mmap_from(data: &[u8]) -> MmapMut {
@@ -339,15 +339,14 @@ mod tests {
     }
 
     #[test]
-    fn graph_bucket_sha256() {
-        graph_bucket::<Sha256Hasher>();
-    }
+    // fn graph_bucket_sha256() {
+    //     graph_bucket::<Sha256Hasher>();
+    // }
 
-    #[test]
-    fn graph_bucket_blake2s() {
-        graph_bucket::<Blake2sHasher>();
-    }
-
+    // #[test]
+    // fn graph_bucket_blake2s() {
+    //     graph_bucket::<Blake2sHasher>();
+    // }
     #[test]
     fn graph_bucket_pedersen() {
         graph_bucket::<PedersenHasher>();
@@ -370,15 +369,15 @@ mod tests {
         gen_proof::<PedersenHasher>(false);
     }
 
-    #[test]
-    fn gen_proof_sha256() {
-        gen_proof::<Sha256Hasher>(true);
-        gen_proof::<Sha256Hasher>(false);
-    }
+    // #[test]
+    //     fn gen_proof_sha256() {
+    //         gen_proof::<Sha256Hasher>(true);
+    //         gen_proof::<Sha256Hasher>(false);
+    //     }
 
-    #[test]
-    fn gen_proof_blake2s() {
-        gen_proof::<Blake2sHasher>(true);
-        gen_proof::<Blake2sHasher>(false);
-    }
+    //     #[test]
+    //     fn gen_proof_blake2s() {
+    //         gen_proof::<Blake2sHasher>(true);
+    //         gen_proof::<Blake2sHasher>(false);
+    //     }
 }

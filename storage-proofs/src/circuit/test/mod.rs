@@ -3,11 +3,20 @@ use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::fmt::Write;
 
-use bellperson::{ConstraintSystem, Index, LinearCombination, SynthesisError, Variable};
+use snark::{ConstraintSystem, Index, LinearCombination, SynthesisError, Variable};
+
+use algebra::biginteger::BigInteger;
+use algebra::fields::Field;
+use algebra::fields::PrimeField;
+use algebra::PairingEngine as Engine;
 use blake2s_simd::State as Blake2s;
 use byteorder::{BigEndian, ByteOrder};
-use ff::{Field, PrimeField, PrimeFieldRepr};
-use paired::Engine;
+
+use std::ops::MulAssign;
+
+use algebra::fields::FpParameters;
+use std::io::Write as ioWrite;
+use std::ops::AddAssign;
 
 #[derive(Debug)]
 enum NamedObject {
@@ -104,7 +113,8 @@ fn hash_lc<E: Engine>(terms: &[(Variable, E::Fr)], h: &mut Blake2s) {
 
         coeff
             .into_repr()
-            .write_be(&mut buf[9..])
+            // FIXME: not using big endianess any more!!
+            .write_le((&mut buf[9..]).by_ref())
             .expect("failed to write coeff");
 
         h.update(&buf[..]);
@@ -183,13 +193,18 @@ impl<E: Engine> TestConstraintSystem<E> {
         write!(s, "\n\n").unwrap();
 
         let negone = {
-            let mut tmp = E::Fr::one();
-            tmp.negate();
-            tmp
+            let tmp = E::Fr::one();
+            // tmp.negate();
+            -tmp
         };
 
-        let powers_of_two = (0..E::Fr::NUM_BITS)
-            .map(|i| E::Fr::from_str("2").unwrap().pow(&[u64::from(i)]))
+        let powers_of_two = (0..<E::Fr as PrimeField>::Params::MODULUS_BITS)
+            .map(|i| {
+                (E::Fr::from_repr_raw(<E::Fr as PrimeField>::BigInt::from(2 as u64))
+                    .pow(&[u64::from(i)]))
+            })
+            // TODO: use `from_str` here, like below:
+            // .map(|i| ((E::Fr::from_str("2"))))
             .collect::<Vec<_>>();
 
         let _pp = |s: &mut String, lc: &LinearCombination<E>| {
@@ -448,22 +463,27 @@ impl<E: Engine> ConstraintSystem<E> for TestConstraintSystem<E> {
     fn get_root(&mut self) -> &mut Self::Root {
         self
     }
+
+    fn num_constraints(&self) -> usize {
+        self.constraints.len()
+    }
 }
 
 #[test]
 fn test_cs() {
-    use ff::PrimeField;
-    use paired::bls12_381::{Bls12, Fr};
+    use algebra::curves::bls12_381::Bls12_381 as Bls12;
+    use algebra::fields::bls12_381::Fr;
+    use std::str::FromStr;
 
     let mut cs = TestConstraintSystem::<Bls12>::new();
     assert!(cs.is_satisfied());
     assert_eq!(cs.num_constraints(), 0);
     let a = cs
-        .namespace(|| "a")
+        .ns(|| "a")
         .alloc(|| "var", || Ok(Fr::from_str("10").unwrap()))
         .unwrap();
     let b = cs
-        .namespace(|| "b")
+        .ns(|| "b")
         .alloc(|| "var", || Ok(Fr::from_str("4").unwrap()))
         .unwrap();
     let c = cs
@@ -488,8 +508,8 @@ fn test_cs() {
     assert!(cs.is_satisfied());
 
     {
-        let mut cs = cs.namespace(|| "test1");
-        let mut cs = cs.namespace(|| "test2");
+        let mut cs = cs.ns(|| "test1");
+        let mut cs = cs.ns(|| "test2");
         cs.alloc(|| "hehe", || Ok(Fr::one())).unwrap();
     }
 

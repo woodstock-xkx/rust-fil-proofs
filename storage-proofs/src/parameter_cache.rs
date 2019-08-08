@@ -1,11 +1,13 @@
 use crate::error::*;
-use bellperson::groth16::Parameters;
-use bellperson::{groth16, Circuit};
-use fil_sapling_crypto::jubjub::JubjubEngine;
+use algebra::{
+    bytes::{FromBytes, ToBytes},
+    PairingEngine as Engine,
+};
 use fs2::FileExt;
 use itertools::Itertools;
 use rand::{SeedableRng, XorShiftRng};
 use sha2::{Digest, Sha256};
+use snark::{groth16, groth16::Parameters, Circuit};
 
 use std::env;
 use std::fs::{self, create_dir_all, File};
@@ -99,7 +101,7 @@ pub trait ParameterSetIdentifier: Clone {
     fn parameter_set_identifier(&self) -> String;
 }
 
-pub trait CacheableParameters<E: JubjubEngine, C: Circuit<E>, PP>
+pub trait CacheableParameters<E: Engine, C: Circuit<E>, PP>
 where
     PP: ParameterSetIdentifier,
 {
@@ -195,14 +197,14 @@ fn ensure_parent(path: &PathBuf) -> Result<()> {
     }
 }
 
-pub fn read_cached_params<E: JubjubEngine>(cache_path: &PathBuf) -> Result<groth16::Parameters<E>> {
+pub fn read_cached_params<E: Engine>(cache_path: &PathBuf) -> Result<groth16::Parameters<E>> {
     ensure_parent(cache_path)?;
 
     let mut f = LockedFile::open_exclusive_read(&cache_path)?;
     info!(SP_LOG, "reading groth params from cache: {:?}", cache_path; "target" => "params");
 
     // TODO: Should we be passing true, to perform a checked read?
-    let params = Parameters::read(&mut f, false).map_err(Error::from)?;
+    let params = Parameters::read(&mut f).map_err(Error::from)?;
 
     let bytes = f.seek(SeekFrom::End(0))?;
     info!(SP_LOG, "groth_parameter_bytes: {}", bytes; "target" => "stats");
@@ -210,7 +212,7 @@ pub fn read_cached_params<E: JubjubEngine>(cache_path: &PathBuf) -> Result<groth
     Ok(params)
 }
 
-pub fn read_cached_verifying_key<E: JubjubEngine>(
+pub fn read_cached_verifying_key<E: Engine>(
     cache_path: &PathBuf,
 ) -> Result<groth16::VerifyingKey<E>> {
     ensure_parent(cache_path)?;
@@ -225,7 +227,7 @@ pub fn read_cached_verifying_key<E: JubjubEngine>(
     Ok(key)
 }
 
-pub fn write_params_to_cache<E: JubjubEngine>(
+pub fn write_params_to_cache<E: Engine>(
     p: groth16::Parameters<E>,
     cache_path: &PathBuf,
 ) -> Result<groth16::Parameters<E>> {
