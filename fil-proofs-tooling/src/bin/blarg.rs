@@ -52,7 +52,6 @@ fn main() {
     let args: Vec<String> = env::args().collect();
 
     let num_sectors_to_seal = args[1].parse::<usize>().unwrap();
-    let control_number = args[2].parse::<usize>().unwrap();
 
     let x: Result<(), failure::Error> = Ok(()).and_then(|_| {
         let sector_size = LIVE_SECTOR_SIZE;
@@ -61,20 +60,10 @@ fn main() {
             UnpaddedBytesAmount::from(PaddedBytesAmount(sector_size.clone()));
 
         let mut xs: Vec<(Option<String>, Commitment)> = Default::default();
-
         let mut ss: Vec<String> = Default::default();
         let mut rs: Vec<String> = Default::default();
 
-        //        println!("generating {} sectors", num_sectors_to_seal);
-
-        println!("here");
-
         for n in 0..num_sectors_to_seal {
-            //            println!("generating sector {}", n);
-            //            let bs: Vec<u8> = (0..number_of_bytes_in_piece.0)
-            //                .map(|_| rand::random::<u8>())
-            //                .collect();
-
             std::fs::create_dir_all("/var/tmp/laser")?;
 
             let p = format!(
@@ -90,62 +79,79 @@ fn main() {
                 POST_SECTORS_COUNT, sector_size, n
             );
 
-            println!("s {}", s);
-            println!("r {}", r);
-
             rs.push(r);
             ss.push(s.clone());
 
-            //            if control_number == 1 {
-            //                // create piece file and write bytes
-            //                let mut f1 = OpenOptions::new()
-            //                    .create(true)
-            //                    .write(true)
-            //                    .truncate(true)
-            //                    .read(true)
-            //                    .open(&p)
-            //                    .expect("failed to create/open f1");
-            //
-            //                f1.write_all(&bs).expect("failed to write to f1");
-            //
-            //                // seek cursor back to beginning
-            //                f1.seek(SeekFrom::Start(0)).expect("failed to seek f1");
-            //
-            //                // create staged sector
-            //                let mut f2 = OpenOptions::new()
-            //                    .create(true)
-            //                    .write(true)
-            //                    .read(true)
-            //                    .truncate(true)
-            //                    .open(s.clone())
-            //                    .expect("failed to create/open f2");
-            //
-            //                // seek cursor back to beginning
-            //                f2.seek(SeekFrom::Start(0)).expect("failed to seek f2");
-            //
-            //                add_piece(&mut f1, &mut f2, number_of_bytes_in_piece, &[])
-            //                    .expect("failed to add piece");
-            //            }
+            println!("generating sector {}", n);
+
+            let bs: Vec<u8> = (0..number_of_bytes_in_piece.0)
+                .map(|_| rand::random::<u8>())
+                .collect();
+
+            // create piece file and write bytes
+            let mut f1 = OpenOptions::new()
+                .create(true)
+                .write(true)
+                .truncate(true)
+                .read(true)
+                .open(&p)
+                .expect("failed to create/open f1");
+
+            f1.write_all(&bs).expect("failed to write to f1");
+
+            // seek cursor back to beginning
+            f1.seek(SeekFrom::Start(0)).expect("failed to seek f1");
+
+            // create staged sector
+            let mut f2 = OpenOptions::new()
+                .create(true)
+                .write(true)
+                .read(true)
+                .truncate(true)
+                .open(s.clone())
+                .expect("failed to create/open f2");
+
+            // seek cursor back to beginning
+            f2.seek(SeekFrom::Start(0)).expect("failed to seek f2");
+
+            add_piece(&mut f1, &mut f2, number_of_bytes_in_piece, &[])
+                .expect("failed to add piece");
         }
 
-        //        if control_number == 1 {
-        //            for n in 0..num_sectors_to_seal {
-        //                let output = seal(
-        //                    PoRepConfig(SectorSize(sector_size.clone()), PoRepProofPartitions(2)),
-        //                    &ss[n],
-        //                    &rs[n],
-        //                    &[0; 31],
-        //                    &[0; 31],
-        //                    &[number_of_bytes_in_piece],
-        //                )
-        //                .expect("failed to seal");
-        //
-        //                xs.push((Some(rs[n].clone()), output.comm_r));
-        //            }
-        //
-        //            println!("seal only - eject!");
-        //            return Ok(());
-        //        }
+        for n in 0..num_sectors_to_seal {
+            let output = seal(
+                PoRepConfig(SectorSize(sector_size.clone()), PoRepProofPartitions(2)),
+                &ss[n],
+                &rs[n],
+                &[0; 31],
+                &[0; 31],
+                &[number_of_bytes_in_piece],
+            )
+            .expect("failed to seal");
+
+            let q = format!(
+                "/var/tmp/laser/sealed-sector-psc{}-ss{}-n{}-commr",
+                POST_SECTORS_COUNT, sector_size, n
+            );
+
+            // create piece file and write bytes
+            let mut fq = OpenOptions::new()
+                .create(true)
+                .write(true)
+                .truncate(true)
+                .read(true)
+                .open(&q)
+                .expect("failed to create/open fq");
+
+            fq.write_all(&output.comm_r).expect("failed to write to fq");
+
+            // seek cursor back to beginning
+            fq.seek(SeekFrom::Start(0)).expect("failed to seek fq");
+
+            xs.push((Some(rs[n].clone()), output.comm_r));
+
+            return Ok(());
+        }
 
         println!("generating PoSt {:?} {}", xs, POST_SECTORS_COUNT);
 
