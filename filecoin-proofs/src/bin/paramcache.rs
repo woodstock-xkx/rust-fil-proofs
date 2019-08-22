@@ -100,14 +100,14 @@ pub fn main() {
 
     let test_only: bool = matches.is_present("test-only");
 
-    cache_porep_params(PoRepConfig(
-        SectorSize(TEST_SECTOR_SIZE),
-        PoRepProofPartitions(2),
-    ));
-    cache_post_params(PoStConfig(
-        SectorSize(TEST_SECTOR_SIZE),
-        PoStProofPartitions(1),
-    ));
+    //    cache_porep_params(PoRepConfig(
+    //        SectorSize(TEST_SECTOR_SIZE),
+    //        PoRepProofPartitions(2),
+    //    ));
+    //    cache_post_params(PoStConfig(
+    //        SectorSize(TEST_SECTOR_SIZE),
+    //        PoStProofPartitions(1),
+    //    ));
 
     if !test_only {
         for p in &POREP_PROOF_PARTITION_CHOICES {
