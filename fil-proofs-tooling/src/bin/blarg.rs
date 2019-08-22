@@ -67,19 +67,13 @@ fn main() {
         for n in 0..num_sectors_to_seal {
             std::fs::create_dir_all("/var/tmp/laser")?;
 
-            let s = format!(
-                "/var/tmp/laser/staged-sector-psc{}-ss{}-n{}",
-                POST_SECTORS_COUNT, sector_size, n
-            );
+            let s = format!("/var/tmp/laser/staged-sector-ss{}-n{}", sector_size, n);
 
-            let r = format!(
-                "/var/tmp/laser/sealed-sector-psc{}-ss{}-n{}",
-                POST_SECTORS_COUNT, sector_size, n
-            );
+            let r = format!("/var/tmp/laser/sealed-sector-ss{}-n{}", sector_size, n);
 
             let q = format!(
-                "/var/tmp/laser/sealed-sector-psc{}-ss{}-n{}-commr",
-                POST_SECTORS_COUNT, sector_size, n
+                "/var/tmp/laser/sealed-sector-ss{}-n{}-commr",
+                sector_size, n
             );
 
             qs.push(q);
