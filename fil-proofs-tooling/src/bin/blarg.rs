@@ -51,8 +51,7 @@ fn main() {
 
     let args: Vec<String> = env::args().collect();
 
-    //    let num_sectors_to_seal = args[1].parse::<usize>().unwrap();
-    let num_sectors_to_seal = 1;
+    let num_sectors_to_seal = args[1].parse::<usize>().unwrap();
     let control = args[2].parse::<usize>().unwrap();
 
     let x: Result<(), failure::Error> = Ok(()).and_then(|_| {
@@ -160,8 +159,6 @@ fn main() {
             let mut xs: Vec<(Option<String>, Commitment)> = Default::default();
 
             for n in 0..num_sectors_to_seal {
-                println!("qs[n]={}", qs[n]);
-
                 let mut xq = OpenOptions::new()
                     .read(true)
                     .open(&qs[n])
@@ -169,10 +166,7 @@ fn main() {
 
                 let mut buffer: [u8; 32] = [0; 32];
 
-                println!("writing");
                 xq.read(&mut buffer).expect("read failed");
-                println!("wrote");
-
                 xs.push((Some(rs[n].clone()), buffer));
             }
 
