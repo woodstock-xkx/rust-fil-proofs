@@ -53,7 +53,7 @@ fn main() {
 
     //    let num_sectors_to_seal = args[1].parse::<usize>().unwrap();
     let num_sectors_to_seal = 1;
-    let control = args[1].parse::<usize>().unwrap();
+    let control = args[2].parse::<usize>().unwrap();
 
     let x: Result<(), failure::Error> = Ok(()).and_then(|_| {
         let sector_size = LIVE_SECTOR_SIZE;
