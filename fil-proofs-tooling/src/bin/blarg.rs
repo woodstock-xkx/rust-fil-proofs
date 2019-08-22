@@ -160,6 +160,8 @@ fn main() {
             let mut xs: Vec<(Option<String>, Commitment)> = Default::default();
 
             for n in 0..num_sectors_to_seal {
+                println!("qs[n]={}", qs[n]);
+
                 let mut xq = OpenOptions::new()
                     .read(true)
                     .open(&qs[n])
@@ -167,9 +169,11 @@ fn main() {
 
                 let mut buffer: [u8; 32] = [0; 32];
 
-                xq.read(&mut buffer)?;
+                println!("writing");
+                xq.read(&mut buffer).expect("read failed");
+                println!("wrote");
 
-                xs[n] = (Some(rs[n].clone()), buffer);
+                xs.push((Some(rs[n].clone()), buffer));
             }
 
             println!("generating PoSt {:?} {}", xs, POST_SECTORS_COUNT);
