@@ -318,26 +318,25 @@ pub fn verify_post_collect_output(
 #[cfg(test)]
 mod tests {
     use crate::constants::TEST_SECTOR_SIZE;
-    use crate::types::*;
 
     use super::*;
 
-    const TEST_CONFIG: PoStConfig =
-        PoStConfig(SectorSize(TEST_SECTOR_SIZE), PoStProofPartitions(1));
-
-    fn fault_vecs(fixed: &[VerifyPoStFixedSectorsCountInput]) -> Vec<Option<Vec<u64>>> {
-        let mut out: Vec<Option<Vec<u64>>> = Default::default();
-
-        for input in fixed.iter() {
-            if input.faults.is_empty() {
-                out.push(None);
-            } else {
-                out.push(Some(input.faults.clone()));
-            }
-        }
-
-        out
-    }
+    //    const TEST_CONFIG: PoStConfig =
+    //        PoStConfig(SectorSize(TEST_SECTOR_SIZE), PoStProofPartitions(1));
+    //
+    //    fn fault_vecs(fixed: &[VerifyPoStFixedSectorsCountInput]) -> Vec<Option<Vec<u64>>> {
+    //        let mut out: Vec<Option<Vec<u64>>> = Default::default();
+    //
+    //        for input in fixed.iter() {
+    //            if input.faults.is_empty() {
+    //                out.push(None);
+    //            } else {
+    //                out.push(Some(input.faults.clone()));
+    //            }
+    //        }
+    //
+    //        out
+    //    }
 
     #[test]
     fn test_verify_post_fixed_to_dynamic_output() {

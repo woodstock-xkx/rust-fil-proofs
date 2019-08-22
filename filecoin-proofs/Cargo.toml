@@ -39,6 +39,7 @@ array-macro = "1.0.4"
 os_type = "2.2.0"
 flate2 = { version = "1.0.9", features = ["rust_backend"]}
 tar = "0.4.26"
+cpu-time = "0.1.0"
 
 [dependencies.reqwest]
 version = "0.9"
