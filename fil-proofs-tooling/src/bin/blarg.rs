@@ -3,8 +3,9 @@ use filecoin_proofs::constants::{LIVE_SECTOR_SIZE, POST_SECTORS_COUNT};
 use filecoin_proofs::fr32::write_padded;
 use filecoin_proofs::pieces::get_aligned_source;
 use filecoin_proofs::{
-    generate_post, seal, Commitment, PaddedBytesAmount, PoRepConfig, PoRepProofPartitions,
-    PoStConfig, PoStProofPartitions, SectorSize, UnpaddedBytesAmount,
+    generate_post, get_unsealed_range, seal, Commitment, PaddedBytesAmount, PoRepConfig,
+    PoRepProofPartitions, PoStConfig, PoStProofPartitions, SectorSize, UnpaddedByteIndex,
+    UnpaddedBytesAmount,
 };
 use std::env;
 use std::fs::OpenOptions;
@@ -182,6 +183,44 @@ fn main() {
             println!("cpu_time: {}s, wall_time: {}s", t1.as_secs(), t2.as_secs());
 
             assert!(x.proofs.len() > 0);
+        }
+
+        if control == 2 {
+            let FuncMeasurement {
+                cpu_time: t1,
+                wall_time: t2,
+                return_value: x,
+            } = measure(|| {
+                get_unsealed_range(
+                    PoRepConfig(SectorSize(sector_size.clone()), PoRepProofPartitions(2)),
+                    rs[0].clone(),
+                    "/tmp/unsealed-full".to_string(),
+                    &[0; 31],
+                    &[0; 31],
+                    UnpaddedByteIndex(0),
+                    number_of_bytes_in_piece,
+                )
+            })
+            .expect("failed to unseal");
+        }
+
+        if control == 3 {
+            let FuncMeasurement {
+                cpu_time: t1,
+                wall_time: t2,
+                return_value: x,
+            } = measure(|| {
+                get_unsealed_range(
+                    PoRepConfig(SectorSize(sector_size.clone()), PoRepProofPartitions(2)),
+                    rs[0].clone(),
+                    "/tmp/unsealed-half".to_string(),
+                    &[0; 31],
+                    &[0; 31],
+                    UnpaddedByteIndex(0),
+                    UnpaddedBytesAmount::from(PaddedBytesAmount(134217728)),
+                )
+            })
+            .expect("failed to unseal half");
         }
 
         Ok(())
