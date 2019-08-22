@@ -4,6 +4,7 @@ post_sector_counts=(2 4 8 16 32 64)
 
 for t in ${post_sector_counts[@]}; do
   sed -i -E "s/^pub const POST_SECTORS_COUNT.*$/pub const POST_SECTORS_COUNT: usize = $t;/" filecoin-proofs/src/constants.rs
+  cat filecoin-proofs/src/constants.rs | grep POST_SECTORS_COUNT
   echo "generating parameters for POST_SECTORS_COUNT=$t"
   cargo run --color=always --package filecoin-proofs --bin paramcache --release
 done
