@@ -121,7 +121,7 @@ fn main() {
                     .write(true)
                     .read(true)
                     .truncate(true)
-                    .open(s.clone())
+                    .open(ss[n].clone())
                     .expect("failed to create/open f2");
 
                 // seek cursor back to beginning
@@ -157,8 +157,6 @@ fn main() {
         }
 
         if control == 1 {
-            println!("generating PoSt {:?} {}", xs, POST_SECTORS_COUNT);
-
             let mut xs: Vec<(Option<String>, Commitment)> = Default::default();
 
             for n in 0..num_sectors_to_seal {
@@ -171,8 +169,10 @@ fn main() {
 
                 xq.read(&mut buffer)?;
 
-                xs[n] = (Some(r[n]), buffer);
+                xs[n] = (Some(rs[n].clone()), buffer);
             }
+
+            println!("generating PoSt {:?} {}", xs, POST_SECTORS_COUNT);
 
             let FuncMeasurement {
                 cpu_time: t1,
