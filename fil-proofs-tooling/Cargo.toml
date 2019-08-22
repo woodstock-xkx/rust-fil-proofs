@@ -40,3 +40,9 @@ blake2s_simd = "0.5.6"
 filecoin-proofs = { path = "../filecoin-proofs" }
 pretty_env_logger = "0.3.0"
 
+
+[features]
+default = []
+simd = ["storage-proofs/simd"]
+asm = ["storage-proofs/asm"]
+disk-trees = ["storage-proofs/disk-trees"]
