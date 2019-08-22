@@ -1,5 +1,5 @@
 use cpu_time::ProcessTime;
-use filecoin_proofs::constants::{POST_SECTORS_COUNT, TEST_SECTOR_SIZE};
+use filecoin_proofs::constants::{LIVE_SECTOR_SIZE, POST_SECTORS_COUNT};
 use filecoin_proofs::fr32::write_padded;
 use filecoin_proofs::pieces::get_aligned_source;
 use filecoin_proofs::{
@@ -55,7 +55,7 @@ fn main() {
     let control_number = args[2].parse::<usize>().unwrap();
 
     let x: Result<(), failure::Error> = Ok(()).and_then(|_| {
-        let sector_size = TEST_SECTOR_SIZE;
+        let sector_size = LIVE_SECTOR_SIZE;
 
         let number_of_bytes_in_piece =
             UnpaddedBytesAmount::from(PaddedBytesAmount(sector_size.clone()));
@@ -89,7 +89,7 @@ fn main() {
             );
 
             rs.push(r);
-            ss.push(s);
+            ss.push(s.clone());
 
             if control_number == 1 {
                 // create piece file and write bytes
@@ -112,7 +112,7 @@ fn main() {
                     .write(true)
                     .read(true)
                     .truncate(true)
-                    .open(&s)
+                    .open(s.clone())
                     .expect("failed to create/open f2");
 
                 // seek cursor back to beginning
