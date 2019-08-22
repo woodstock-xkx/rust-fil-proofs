@@ -67,11 +67,13 @@ fn main() {
 
         //        println!("generating {} sectors", num_sectors_to_seal);
 
+        println!("here");
+
         for n in 0..num_sectors_to_seal {
             //            println!("generating sector {}", n);
-            let bs: Vec<u8> = (0..number_of_bytes_in_piece.0)
-                .map(|_| rand::random::<u8>())
-                .collect();
+            //            let bs: Vec<u8> = (0..number_of_bytes_in_piece.0)
+            //                .map(|_| rand::random::<u8>())
+            //                .collect();
 
             std::fs::create_dir_all("/var/tmp/laser")?;
 
@@ -87,6 +89,9 @@ fn main() {
                 "/var/tmp/laser/sealed-sector-psc{}-ss{}-n{}",
                 POST_SECTORS_COUNT, sector_size, n
             );
+
+            println!("s {}", s);
+            println!("r {}", r);
 
             rs.push(r);
             ss.push(s.clone());
