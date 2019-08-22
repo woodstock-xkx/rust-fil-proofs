@@ -156,11 +156,42 @@ fn main() {
                 let mut xq = OpenOptions::new()
                     .read(true)
                     .open(&qs[n])
-                    .expect("failed to create/open fq");
+                    .expect("failed to create/open xq");
 
                 let mut buffer: [u8; 32] = [0; 32];
 
                 xq.read(&mut buffer).expect("read failed");
+                xs.push((Some(rs[n].clone()), buffer));
+                xs.push((Some(rs[n].clone()), buffer));
+                xs.push((Some(rs[n].clone()), buffer));
+                xs.push((Some(rs[n].clone()), buffer));
+                xs.push((Some(rs[n].clone()), buffer));
+                xs.push((Some(rs[n].clone()), buffer));
+                xs.push((Some(rs[n].clone()), buffer));
+                xs.push((Some(rs[n].clone()), buffer));
+                xs.push((Some(rs[n].clone()), buffer));
+                xs.push((Some(rs[n].clone()), buffer));
+                xs.push((Some(rs[n].clone()), buffer));
+                xs.push((Some(rs[n].clone()), buffer));
+                xs.push((Some(rs[n].clone()), buffer));
+                xs.push((Some(rs[n].clone()), buffer));
+                xs.push((Some(rs[n].clone()), buffer));
+                xs.push((Some(rs[n].clone()), buffer));
+                xs.push((Some(rs[n].clone()), buffer));
+                xs.push((Some(rs[n].clone()), buffer));
+                xs.push((Some(rs[n].clone()), buffer));
+                xs.push((Some(rs[n].clone()), buffer));
+                xs.push((Some(rs[n].clone()), buffer));
+                xs.push((Some(rs[n].clone()), buffer));
+                xs.push((Some(rs[n].clone()), buffer));
+                xs.push((Some(rs[n].clone()), buffer));
+                xs.push((Some(rs[n].clone()), buffer));
+                xs.push((Some(rs[n].clone()), buffer));
+                xs.push((Some(rs[n].clone()), buffer));
+                xs.push((Some(rs[n].clone()), buffer));
+                xs.push((Some(rs[n].clone()), buffer));
+                xs.push((Some(rs[n].clone()), buffer));
+                xs.push((Some(rs[n].clone()), buffer));
                 xs.push((Some(rs[n].clone()), buffer));
             }
 
