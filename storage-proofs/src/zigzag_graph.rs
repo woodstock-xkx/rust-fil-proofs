@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::sync::{Arc, RwLock};
 
@@ -10,37 +11,40 @@ use crate::settings;
 
 pub const DEFAULT_EXPANSION_DEGREE: usize = 8;
 
-// Cache of node's parents.
-pub type ParentCache = Vec<Option<Vec<u32>>>;
+lazy_static! {
+    // This parents cache is currently used for the *expanded parents only*, generated
+    // by the expensive Feistel operations in the ZigZag, it doesn't contain the
+    // "base" (in the `Graph` terminology) parents, which are cheaper to compute.
+    static ref PARENT_CACHE: Arc<RwLock<HashMap<String, ParentCache>>> = Arc::new(RwLock::new(HashMap::new()));
+}
 
 // ZigZagGraph will hold two different (but related) `ParentCache`,
-// the first one for the `forward` direction and the second one
-// for the `reversed`.
+// the first one for the `forward` direction and the second one for the `reversed`.
 #[derive(Debug, Clone)]
-pub struct ShareableParentCache {
-    forward: Arc<RwLock<ParentCache>>,
-    reverse: Arc<RwLock<ParentCache>>,
+pub struct ParentCache {
+    forward: Vec<Option<Vec<u32>>>,
+    reverse: Vec<Option<Vec<u32>>>,
     // Keep the size of the cache outside the lock to be easily accessible.
     cache_entries: u32,
 }
 
-impl ShareableParentCache {
+impl ParentCache {
     pub fn new(cache_entries: u32) -> Self {
-        ShareableParentCache {
-            forward: Arc::new(RwLock::new(vec![None; cache_entries as usize])),
-            reverse: Arc::new(RwLock::new(vec![None; cache_entries as usize])),
+        ParentCache {
+            forward: vec![None; cache_entries as usize],
+            reverse: vec![None; cache_entries as usize],
             cache_entries,
         }
     }
 
     pub fn contains_forward(&self, node: u32) -> bool {
         assert!(node < self.cache_entries);
-        self.forward.read().unwrap()[node as usize].is_some()
+        self.forward[node as usize].is_some()
     }
 
     pub fn contains_reverse(&self, node: u32) -> bool {
         assert!(node < self.cache_entries);
-        self.reverse.read().unwrap()[node as usize].is_some()
+        self.reverse[node as usize].is_some()
     }
 
     pub fn read_forward<F, T>(&self, node: u32, mut cb: F) -> T
@@ -48,8 +52,7 @@ impl ShareableParentCache {
         F: FnMut(Option<&Vec<u32>>) -> T,
     {
         assert!(node < self.cache_entries);
-        let lock = self.forward.read().unwrap();
-        cb(lock[node as usize].as_ref())
+        cb(self.forward[node as usize].as_ref())
     }
 
     pub fn read_reverse<F, T>(&self, node: u32, mut cb: F) -> T
@@ -57,28 +60,23 @@ impl ShareableParentCache {
         F: FnMut(Option<&Vec<u32>>) -> T,
     {
         assert!(node < self.cache_entries);
-        let lock = self.reverse.read().unwrap();
-        cb(lock[node as usize].as_ref())
+        cb(self.reverse[node as usize].as_ref())
     }
 
-    pub fn write_forward(&self, node: u32, parents: Vec<u32>) {
+    pub fn write_forward(&mut self, node: u32, parents: Vec<u32>) {
         assert!(node < self.cache_entries);
 
-        let mut write_lock = self.forward.write().unwrap();
-
-        let old_value = std::mem::replace(&mut write_lock[node as usize], Some(parents));
+        let old_value = std::mem::replace(&mut self.forward[node as usize], Some(parents));
 
         debug_assert_eq!(old_value, None);
         // We shouldn't be rewriting entries (with most likely the same values),
         // this would be a clear indication of a bug.
     }
 
-    pub fn write_reverse(&self, node: u32, parents: Vec<u32>) {
+    pub fn write_reverse(&mut self, node: u32, parents: Vec<u32>) {
         assert!(node < self.cache_entries);
 
-        let mut write_lock = self.reverse.write().unwrap();
-
-        let old_value = std::mem::replace(&mut write_lock[node as usize], Some(parents));
+        let old_value = std::mem::replace(&mut self.reverse[node as usize], Some(parents));
 
         debug_assert_eq!(old_value, None);
         // We shouldn't be rewriting entries (with most likely the same values),
@@ -96,16 +94,8 @@ where
     base_graph: G,
     pub reversed: bool,
     feistel_precomputed: FeistelPrecomputed,
-
-    // This parents cache is currently used for the *expanded parents only*, generated
-    // by the expensive Feistel operations in the ZigZag, it doesn't contain the
-    // "base" (in the `Graph` terminology) parents, which are cheaper to compute.
-    // This is not an LRU cache, it holds the first `cache_entries` of the total
-    // possible `base_graph.size()` (the assumption here is that we either request
-    // all entries sequentially when encoding or any random entry once when proving
-    // or verifying, but there's no locality to take advantage of so keep the logic
-    // as simple as possible).
-    parents_cache: Option<ShareableParentCache>,
+    id: String,
+    use_cache: bool,
     _h: PhantomData<H>,
 }
 
@@ -114,14 +104,14 @@ pub type ZigZagBucketGraph<H> = ZigZagGraph<H, BucketGraph<H>>;
 impl<'a, H, G> Layerable<H> for ZigZagGraph<H, G>
 where
     H: Hasher,
-    G: Graph<H> + 'static,
+    G: Graph<H> + ParameterSetMetadata + 'static,
 {
 }
 
 impl<H, G> ZigZagGraph<H, G>
 where
     H: Hasher,
-    G: Graph<H>,
+    G: Graph<H> + ParameterSetMetadata,
 {
     pub fn new(
         base_graph: Option<G>,
@@ -130,25 +120,40 @@ where
         expansion_degree: usize,
         seed: [u32; 7],
     ) -> Self {
-        let parents_cache = if settings::SETTINGS.lock().unwrap().maximize_caching {
-            info!("using parents cache of unlimited size",);
-            assert!(nodes <= std::u32::MAX as usize);
-            Some(ShareableParentCache::new(nodes as u32))
-        } else {
-            None
-        };
+        let use_cache = settings::SETTINGS.lock().unwrap().maximize_caching;
 
-        ZigZagGraph {
-            base_graph: match base_graph {
-                Some(graph) => graph,
-                None => G::new(nodes, base_degree, 0, seed),
-            },
+        let base_graph = match base_graph {
+            Some(graph) => graph,
+            None => G::new(nodes, base_degree, 0, seed),
+        };
+        let bg_id = base_graph.identifier();
+
+        let res = ZigZagGraph {
+            base_graph,
+            id: format!(
+                "zigzag_graph::ZigZagGraph{{expansion_degree: {} base_graph: {} }}",
+                expansion_degree, bg_id,
+            ),
             expansion_degree,
+            use_cache,
             reversed: false,
             feistel_precomputed: feistel::precompute((expansion_degree * nodes) as feistel::Index),
-            parents_cache,
             _h: PhantomData,
+        };
+
+        if use_cache {
+            info!("using parents cache of unlimited size",);
+            assert!(nodes <= std::u32::MAX as usize);
+
+            if !PARENT_CACHE.read().unwrap().contains_key(&res.id) {
+                PARENT_CACHE
+                    .write()
+                    .unwrap()
+                    .insert(res.id.clone(), ParentCache::new(nodes as u32));
+            }
         }
+
+        res
     }
 }
 
@@ -158,11 +163,7 @@ where
     G: Graph<H> + ParameterSetMetadata,
 {
     fn identifier(&self) -> String {
-        format!(
-            "zigzag_graph::ZigZagGraph{{expansion_degree: {} base_graph: {} }}",
-            self.expansion_degree,
-            self.base_graph.identifier()
-        )
+        self.id.clone()
     }
 
     fn sector_size(&self) -> u64 {
@@ -257,7 +258,7 @@ impl<Z: ZigZag> Graph<Z::BaseHasher> for Z {
 impl<'a, H, G> ZigZagGraph<H, G>
 where
     H: Hasher,
-    G: Graph<H>,
+    G: Graph<H> + ParameterSetMetadata,
 {
     // Assign `expansion_degree` parents to `node` using an invertible function. That
     // means we can't just generate random values between `[0, size())`, we need to
@@ -323,11 +324,15 @@ where
     // the current direction set in the graph and return a copy of it (or
     // `None` to signal a cache miss).
     fn contains_parents_cache(&self, node: usize) -> bool {
-        if let Some(ref cache) = self.parents_cache {
-            if self.forward() {
-                cache.contains_forward(node as u32)
+        if self.use_cache {
+            if let Some(ref cache) = PARENT_CACHE.read().unwrap().get(&self.id) {
+                if self.forward() {
+                    cache.contains_forward(node as u32)
+                } else {
+                    cache.contains_reverse(node as u32)
+                }
             } else {
-                cache.contains_reverse(node as u32)
+                false
             }
         } else {
             false
@@ -338,7 +343,7 @@ where
 impl<'a, H, G> ZigZag for ZigZagGraph<H, G>
 where
     H: Hasher,
-    G: Graph<H>,
+    G: Graph<H> + ParameterSetMetadata,
 {
     type BaseHasher = H;
     type BaseGraph = G;
@@ -407,22 +412,30 @@ where
                 })
                 .collect();
 
-            if let Some(ref cache) = self.parents_cache {
-                if self.forward() {
-                    cache.write_forward(node as u32, parents);
+            if self.use_cache {
+                if let Some(ref mut cache) = PARENT_CACHE.write().unwrap().get_mut(&self.id) {
+                    if self.forward() {
+                        cache.write_forward(node as u32, parents);
+                    } else {
+                        cache.write_reverse(node as u32, parents);
+                    }
                 } else {
-                    cache.write_reverse(node as u32, parents);
+                    panic!("Invalid cache construction");
                 }
             } else {
                 return cb(&parents);
             }
         }
 
-        if let Some(ref cache) = self.parents_cache {
-            if self.forward() {
-                cache.read_forward(node as u32, |parents| cb(parents.unwrap()))
+        if self.use_cache {
+            if let Some(ref cache) = PARENT_CACHE.read().unwrap().get(&self.id) {
+                if self.forward() {
+                    cache.read_forward(node as u32, |parents| cb(parents.unwrap()))
+                } else {
+                    cache.read_reverse(node as u32, |parents| cb(parents.unwrap()))
+                }
             } else {
-                cache.read_reverse(node as u32, |parents| cb(parents.unwrap()))
+                panic!("Invalid cache construction");
             }
         } else {
             unreachable!()
