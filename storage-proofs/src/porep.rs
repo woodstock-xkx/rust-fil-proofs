@@ -67,7 +67,7 @@ pub trait PoRep<'a, H: Hasher>: ProofScheme<'a> {
         pub_params: &'a Self::PublicParams,
         replica_id: &H::Domain,
         replica: &[u8],
-        node: usize,
+        node: u32,
     ) -> Result<Vec<u8>>;
 }
 

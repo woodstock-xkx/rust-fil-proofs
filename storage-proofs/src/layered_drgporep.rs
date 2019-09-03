@@ -688,7 +688,7 @@ impl<'a, 'c, L: Layers> PoRep<'a, L::Hasher> for L {
         _pp: &PublicParams<L::Hasher, L::Graph>,
         _replica_id: &<L::Hasher as Hasher>::Domain,
         _data: &[u8],
-        _node: usize,
+        _node: u32,
     ) -> Result<Vec<u8>> {
         unimplemented!();
     }

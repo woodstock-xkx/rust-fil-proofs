@@ -1,5 +1,7 @@
 use std::cmp;
+use std::collections::HashMap;
 use std::marker::PhantomData;
+use std::sync::{Arc, RwLock};
 
 use rand::{ChaChaRng, OsRng, Rng, SeedableRng};
 use rayon::prelude::*;
@@ -16,6 +18,49 @@ use merkletree::merkle::FromIndexedParallelIterator;
 pub type DefaultTreeHasher = PedersenHasher;
 
 pub const PARALLEL_MERKLE: bool = true;
+
+#[derive(Debug, Clone)]
+pub struct ParentCache {
+    cache: Vec<Option<Vec<u32>>>,
+    cache_entries: u32,
+}
+
+impl ParentCache {
+    pub fn new(cache_entries: u32) -> Self {
+        ParentCache {
+            cache: vec![None; cache_entries as usize],
+            cache_entries,
+        }
+    }
+
+    pub fn contains(&self, node: u32) -> bool {
+        assert!(node < self.cache_entries);
+        self.cache[node as usize].is_some()
+    }
+
+    pub fn read<F, T>(&self, node: u32, mut cb: F) -> T
+    where
+        F: FnMut(Option<&Vec<u32>>) -> T,
+    {
+        assert!(node < self.cache_entries);
+        cb(self.cache[node as usize].as_ref())
+    }
+
+    pub fn write(&mut self, node: u32, parents: Vec<u32>) {
+        assert!(node < self.cache_entries);
+
+        let old_value = std::mem::replace(&mut self.cache[node as usize], Some(parents));
+
+        debug_assert_eq!(old_value, None);
+        // We shouldn't be rewriting entries (with most likely the same values),
+        // this would be a clear indication of a bug.
+    }
+}
+
+lazy_static! {
+    static ref PARENT_CACHE: Arc<RwLock<HashMap<String, ParentCache>>> =
+        Arc::new(RwLock::new(HashMap::new()));
+}
 
 /// A depth robust graph.
 pub trait Graph<H: Hasher>: ::std::fmt::Debug + Clone + PartialEq + Eq {
@@ -85,7 +130,7 @@ pub trait Graph<H: Hasher>: ::std::fmt::Debug + Clone + PartialEq + Eq {
     ///
     /// The `parents` parameter is used to store the result. This is done fore performance
     /// reasons, so that the vector can be allocated outside this call.
-    fn parents(&self, node: usize, parents: &mut [usize]);
+    fn parents(&self, node: u32, parents: &mut [u32]);
 
     /// Returns the size of the graph (number of nodes).
     fn size(&self) -> usize;
@@ -107,23 +152,18 @@ pub fn graph_height(size: usize) -> usize {
 }
 
 /// Bucket sampling algorithm.
-#[derive(Clone, Debug, PartialEq, Eq, Copy)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BucketGraph<H: Hasher> {
     nodes: usize,
     base_degree: usize,
     seed: [u32; 7],
+    id: String,
     _h: PhantomData<H>,
 }
 
 impl<H: Hasher> ParameterSetMetadata for BucketGraph<H> {
     fn identifier(&self) -> String {
-        // NOTE: Seed is not included because it does not influence parameter generation.
-        format!(
-            "drgraph::BucketGraph{{size: {}; degree: {}; hasher: {}}}",
-            self.nodes,
-            self.base_degree,
-            H::name(),
-        )
+        self.id.clone()
     }
 
     fn sector_size(&self) -> u64 {
@@ -131,10 +171,9 @@ impl<H: Hasher> ParameterSetMetadata for BucketGraph<H> {
     }
 }
 
-impl<H: Hasher> Graph<H> for BucketGraph<H> {
-    #[inline]
-    fn parents(&self, node: usize, parents: &mut [usize]) {
-        let m = self.base_degree;
+impl<H: Hasher> BucketGraph<H> {
+    fn generate_parents(&self, node: u32, parents: &mut [u32]) {
+        let m = self.base_degree as u32;
 
         match node {
             // Special case for the first node, it self references.
@@ -142,7 +181,7 @@ impl<H: Hasher> Graph<H> for BucketGraph<H> {
             0 | 1 => {
                 // Use the degree of the curren graph (`m`), as parents.len() might be bigger
                 // than that (that's the case for ZigZag Graph)
-                for parent in parents.iter_mut().take(m) {
+                for parent in parents.iter_mut().take(m as usize) {
                     *parent = 0;
                 }
             }
@@ -153,7 +192,8 @@ impl<H: Hasher> Graph<H> for BucketGraph<H> {
                 seed[7] = node as u32;
                 let mut rng = ChaChaRng::from_seed(&seed);
 
-                for (k, parent) in parents.iter_mut().take(m).enumerate() {
+                for (k, parent) in parents.iter_mut().take(m as usize).enumerate() {
+                    let k = k as u32;
                     // iterate over m meta nodes of the ith real node
                     // simulate the edges that we would add from previous graph nodes
                     // if any edge is added from a meta node of jth real node then add edge (j,i)
@@ -174,8 +214,40 @@ impl<H: Hasher> Graph<H> for BucketGraph<H> {
 
                 // Use the degree of the curren graph (`m`), as parents.len() might be bigger
                 // than that (that's the case for ZigZag Graph)
-                parents[0..m].sort_unstable();
+                parents[..m as usize].sort_unstable();
             }
+        }
+    }
+}
+
+impl<H: Hasher> Graph<H> for BucketGraph<H> {
+    #[inline]
+    fn parents(&self, node: u32, parents: &mut [u32]) {
+        if !PARENT_CACHE
+            .read()
+            .unwrap()
+            .get(&self.id)
+            .unwrap()
+            .contains(node)
+        {
+            self.generate_parents(node, parents);
+
+            PARENT_CACHE
+                .write()
+                .unwrap()
+                .get_mut(&self.id)
+                .unwrap()
+                .write(node, parents[..self.base_degree].to_vec());
+        } else {
+            PARENT_CACHE
+                .read()
+                .unwrap()
+                .get(&self.id)
+                .unwrap()
+                .read(node, |cached| {
+                    parents[..self.base_degree]
+                        .copy_from_slice(&cached.unwrap()[..self.base_degree]);
+                });
         }
     }
 
@@ -195,10 +267,28 @@ impl<H: Hasher> Graph<H> for BucketGraph<H> {
 
     fn new(nodes: usize, base_degree: usize, expansion_degree: usize, seed: [u32; 7]) -> Self {
         assert_eq!(expansion_degree, 0);
+        assert!(nodes <= std::u32::MAX as usize);
+
+        // NOTE: Seed is not included because it does not influence parameter generation.
+        let id = format!(
+            "drgraph::BucketGraph{{size: {}; degree: {}; hasher: {}}}",
+            nodes,
+            base_degree,
+            H::name(),
+        );
+
+        if !PARENT_CACHE.read().unwrap().contains_key(&id) {
+            PARENT_CACHE
+                .write()
+                .unwrap()
+                .insert(id.clone(), ParentCache::new(nodes as u32));
+        }
+
         BucketGraph {
             nodes,
             base_degree,
             seed,
+            id,
             _h: PhantomData,
         }
     }
@@ -243,6 +333,7 @@ mod tests {
                 assert_eq!(parents, vec![0; degree as usize]);
 
                 for i in 2..size {
+                    let i = i as u32;
                     let mut pa1 = vec![0; degree];
                     g.parents(i, &mut pa1);
                     let mut pa2 = vec![0; degree];

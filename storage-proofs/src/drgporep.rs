@@ -136,7 +136,7 @@ impl<H: Hasher> DataProof<H> {
     }
 }
 
-pub type ReplicaParents<H> = Vec<(usize, DataProof<H>)>;
+pub type ReplicaParents<H> = Vec<(u32, DataProof<H>)>;
 
 #[derive(Default, Debug, Clone, Serialize, Deserialize)]
 pub struct Proof<H: Hasher> {
@@ -294,15 +294,15 @@ where
             });
 
             let mut parents = vec![0; pub_params.graph.degree()];
-            pub_params.graph.parents(challenge, &mut parents);
+            pub_params.graph.parents(challenge as u32, &mut parents);
             let mut replica_parentsi = Vec::with_capacity(parents.len());
 
             for p in &parents {
                 replica_parentsi.push((*p, {
-                    let proof = tree_r.gen_proof(*p);
+                    let proof = tree_r.gen_proof(*p as usize);
                     DataProof {
                         proof: MerkleProof::new_from_proof(&proof),
-                        data: tree_r.read_at(*p),
+                        data: tree_r.read_at(*p as usize),
                     }
                 }));
             }
@@ -323,7 +323,7 @@ where
                 let extracted = decode_domain_block::<H>(
                     &pub_inputs.replica_id.expect("missing replica_id"),
                     tree_r,
-                    challenge,
+                    challenge as u32,
                     tree_r.read_at(challenge),
                     &parents,
                 )?;
@@ -362,7 +362,7 @@ where
                 let mut expected_parents = vec![0; pub_params.graph.degree()];
                 pub_params
                     .graph
-                    .parents(pub_inputs.challenges[i], &mut expected_parents);
+                    .parents(pub_inputs.challenges[i] as u32, &mut expected_parents);
                 if proof.replica_parents[i].len() != expected_parents.len() {
                     println!(
                         "proof parents were not the same length as in public parameters: {} != {}",
@@ -391,7 +391,7 @@ where
             }
 
             for (parent_node, p) in &proof.replica_parents[i] {
-                if !p.proof.validate(*parent_node) {
+                if !p.proof.validate(*parent_node as usize) {
                     return Ok(false);
                 }
             }
@@ -468,7 +468,7 @@ where
         pp: &Self::PublicParams,
         replica_id: &H::Domain,
         data: &[u8],
-        node: usize,
+        node: u32,
     ) -> Result<Vec<u8>> {
         Ok(decode_block(&pp.graph, replica_id, data, node)?.into_bytes())
     }
@@ -586,7 +586,7 @@ mod tests {
         assert_ne!(data, copied, "replication did not change data");
 
         for i in 0..nodes {
-            let decoded_data = DrgPoRep::extract(&pp, &replica_id, &mmapped_data_copy, i)
+            let decoded_data = DrgPoRep::extract(&pp, &replica_id, &mmapped_data_copy, i as u32)
                 .expect("failed to extract node data from PoRep");
 
             let original_data = data_at_node(&data, i).unwrap();
@@ -723,7 +723,7 @@ mod tests {
                         // Rotate the real parent proofs.
                         let x = (i + 1) % real_parents[0].len();
                         let j = real_parents[0][x].0;
-                        (*p, real_parents[0][j].1.clone())
+                        (*p, real_parents[0][j as usize].1.clone())
                     })
                     .collect::<Vec<_>>()];
 

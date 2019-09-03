@@ -21,19 +21,19 @@ where
     // The only subtlety is that a ZigZag graph may be reversed, so the direction
     // of the traversal must also be.
 
-    let mut parents = vec![0; graph.degree()];
+    let mut parents = vec![0u32; graph.degree()];
     for n in 0..graph.size() {
         let node = if graph.forward() {
-            n
+            n as u32
         } else {
             // If the graph is reversed, traverse in reverse order.
-            (graph.size() - n) - 1
+            ((graph.size() - n) - 1) as u32
         };
 
         graph.parents(node, &mut parents);
 
         let key = create_key::<H>(replica_id, node, &parents, data)?;
-        let start = data_at_node_offset(node);
+        let start = data_at_node_offset(node as usize);
         let end = start + NODE_SIZE;
 
         let node_data = H::Domain::try_from_bytes(&data[start..end])?;
@@ -53,7 +53,7 @@ where
     // TODO: parallelize
     (0..graph.size()).fold(Ok(Vec::with_capacity(data.len())), |acc, i| {
         acc.and_then(|mut acc| {
-            acc.extend(decode_block(graph, replica_id, data, i)?.into_bytes());
+            acc.extend(decode_block(graph, replica_id, data, i as u32)?.into_bytes());
             Ok(acc)
         })
     })
@@ -63,7 +63,7 @@ pub fn decode_block<'a, H, G>(
     graph: &'a G,
     replica_id: &'a H::Domain,
     data: &'a [u8],
-    v: usize,
+    v: u32,
 ) -> Result<H::Domain>
 where
     H: Hasher,
@@ -72,7 +72,7 @@ where
     let mut parents = vec![0; graph.degree()];
     graph.parents(v, &mut parents);
     let key = create_key::<H>(replica_id, v, &parents, &data)?;
-    let node_data = H::Domain::try_from_bytes(&data_at_node(data, v)?)?;
+    let node_data = H::Domain::try_from_bytes(&data_at_node(data, v as usize)?)?;
 
     Ok(H::sloth_decode(&key, &node_data))
 }
@@ -80,9 +80,9 @@ where
 pub fn decode_domain_block<H>(
     replica_id: &H::Domain,
     tree: &MerkleTree<H::Domain, H::Function>,
-    node: usize,
+    node: u32,
     node_data: <H as Hasher>::Domain,
-    parents: &[usize],
+    parents: &[u32],
 ) -> Result<H::Domain>
 where
     H: Hasher,
@@ -97,8 +97,8 @@ where
 /// It is only public so that it can be used for benchmarking
 pub fn create_key<H: Hasher>(
     id: &H::Domain,
-    node: usize,
-    parents: &[usize],
+    node: u32,
+    parents: &[u32],
     data: &[u8],
 ) -> Result<H::Domain> {
     let mut hasher = Blake2s::new().hash_length(NODE_SIZE).to_state();
@@ -107,7 +107,7 @@ pub fn create_key<H: Hasher>(
     // The hash is about the parents, hence skip if a node doesn't have any parents
     if node != parents[0] {
         for parent in parents.iter() {
-            let offset = data_at_node_offset(*parent);
+            let offset = data_at_node_offset(*parent as usize);
             hasher.update(&data[offset..offset + NODE_SIZE]);
         }
     }
@@ -121,8 +121,8 @@ pub fn create_key<H: Hasher>(
 /// It is only public so that it can be used for benchmarking
 pub fn create_key_from_tree<H: Hasher>(
     id: &H::Domain,
-    node: usize,
-    parents: &[usize],
+    node: u32,
+    parents: &[u32],
     tree: &MerkleTree<H::Domain, H::Function>,
 ) -> Result<H::Domain> {
     let mut hasher = Blake2s::new().hash_length(NODE_SIZE).to_state();
@@ -132,7 +132,7 @@ pub fn create_key_from_tree<H: Hasher>(
     if node != parents[0] {
         let mut scratch: [u8; NODE_SIZE] = [0; NODE_SIZE];
         for parent in parents.iter() {
-            tree.read_into(*parent, &mut scratch);
+            tree.read_into(*parent as usize, &mut scratch);
             hasher.update(&scratch);
         }
     }

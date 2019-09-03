@@ -183,10 +183,10 @@ pub trait ZigZag: ::std::fmt::Debug + Clone + PartialEq + Eq {
     fn base_graph(&self) -> Self::BaseGraph;
     fn expansion_degree(&self) -> usize;
     fn reversed(&self) -> bool;
-    fn expanded_parents<F, T>(&self, node: usize, cb: F) -> T
+    fn expanded_parents<F, T>(&self, node: u32, cb: F) -> T
     where
         F: FnMut(&Vec<u32>) -> T;
-    fn real_index(&self, i: usize) -> usize;
+    fn real_index(&self, i: u32) -> u32;
     fn new_zigzag(
         nodes: usize,
         base_degree: usize,
@@ -205,7 +205,7 @@ impl<Z: ZigZag> Graph<Z::BaseHasher> for Z {
     }
 
     #[inline]
-    fn parents(&self, raw_node: usize, parents: &mut [usize]) {
+    fn parents(&self, raw_node: u32, parents: &mut [u32]) {
         // If graph is reversed, use real_index to convert index to reversed index.
         // So we convert a raw reversed node to an unreversed node, calculate its parents,
         // then convert the parents to reversed.
@@ -219,16 +219,16 @@ impl<Z: ZigZag> Graph<Z::BaseHasher> for Z {
         // expanded_parents takes raw_node
         self.expanded_parents(raw_node, |expanded_parents| {
             for (ii, value) in expanded_parents.iter().enumerate() {
-                parents[ii + self.base_graph().degree()] = *value as usize
+                parents[ii + self.base_graph().degree()] = *value;
             }
 
             // Pad so all nodes have correct degree.
             let current_length = self.base_graph().degree() + expanded_parents.len();
             for ii in 0..(self.degree() - current_length) {
                 if self.reversed() {
-                    parents[ii + current_length] = self.size() - 1
+                    parents[ii + current_length] = self.size() as u32 - 1;
                 } else {
-                    parents[ii + current_length] = 0
+                    parents[ii + current_length] = 0;
                 }
             }
         });
@@ -295,8 +295,8 @@ where
     // receive the indexes `[0; 1; 2]`, where the index `0` is guaranteed to map back
     // to the index `4` that generated it earlier, corresponding to the node 2, inverting
     // in fact the child-parent relationship.
-    fn correspondent(&self, node: usize, i: usize) -> usize {
-        let a = (node * self.expansion_degree) as feistel::Index + i as feistel::Index;
+    fn correspondent(&self, node: u32, i: usize) -> u32 {
+        let a = (node * self.expansion_degree as u32) as feistel::Index + i as feistel::Index;
         let feistel_keys = &[1, 2, 3, 4];
 
         let transformed = if self.reversed {
@@ -314,7 +314,7 @@ where
                 self.feistel_precomputed,
             )
         };
-        transformed as usize / self.expansion_degree
+        transformed as u32 / self.expansion_degree as u32
         // Collapse the output in the matrix search space to the row of the corresponding
         // node (losing the column information, that will be regenerated later when calling
         // back this function in the `reversed` direction).
@@ -323,13 +323,13 @@ where
     // Read the `node` entry in the parents cache (which may not exist) for
     // the current direction set in the graph and return a copy of it (or
     // `None` to signal a cache miss).
-    fn contains_parents_cache(&self, node: usize) -> bool {
+    fn contains_parents_cache(&self, node: u32) -> bool {
         if self.use_cache {
             if let Some(ref cache) = PARENT_CACHE.read().unwrap().get(&self.id) {
                 if self.forward() {
-                    cache.contains_forward(node as u32)
+                    cache.contains_forward(node)
                 } else {
-                    cache.contains_reverse(node as u32)
+                    cache.contains_reverse(node)
                 }
             } else {
                 false
@@ -390,7 +390,7 @@ where
     // we would only need to compute the parents in one direction and with
     // that fill both caches.
     #[inline]
-    fn expanded_parents<F, T>(&self, node: usize, mut cb: F) -> T
+    fn expanded_parents<F, T>(&self, node: u32, mut cb: F) -> T
     where
         F: FnMut(&Vec<u32>) -> T,
     {
@@ -400,12 +400,12 @@ where
                     let other = self.correspondent(node, i);
                     if self.reversed {
                         if other > node {
-                            Some(other as u32)
+                            Some(other)
                         } else {
                             None
                         }
                     } else if other < node {
-                        Some(other as u32)
+                        Some(other)
                     } else {
                         None
                     }
@@ -443,9 +443,9 @@ where
     }
 
     #[inline]
-    fn real_index(&self, i: usize) -> usize {
+    fn real_index(&self, i: u32) -> u32 {
         if self.reversed {
-            (self.size() - 1) - i
+            (self.size() as u32 - 1) - i
         } else {
             i
         }
@@ -482,6 +482,7 @@ mod tests {
 
     fn assert_graph_ascending<H: Hasher, G: Graph<H>>(g: G) {
         for i in 0..g.size() {
+            let i = i as u32;
             let mut parents = vec![0; g.degree()];
             g.parents(i, &mut parents);
             for p in parents {
@@ -496,10 +497,11 @@ mod tests {
 
     fn assert_graph_descending<H: Hasher, G: Graph<H>>(g: G) {
         for i in 0..g.size() {
+            let i = i as u32;
             let mut parents = vec![0; g.degree()];
             g.parents(i, &mut parents);
             for p in parents {
-                if i == g.size() - 1 {
+                if i as usize == g.size() - 1 {
                     assert!(p == i);
                 } else {
                     assert!(p > i);
@@ -572,9 +574,10 @@ mod tests {
         // And then do the same check to make sure all (expanded) node-parent relationships from the original
         // are present in the zigzag, just reversed.
         for i in 0..g.size() {
+            let i = i as u32;
             g.expanded_parents(i, |parents| {
                 for p in parents.iter() {
-                    assert!(gzcache[&(*p as usize)].contains(&(i as u32)));
+                    assert!(gzcache[&(*p as usize)].contains(&i));
                 }
             });
         }
@@ -587,7 +590,7 @@ mod tests {
     ) -> HashMap<usize, Vec<u32>> {
         let mut parents_map: HashMap<usize, Vec<u32>> = HashMap::new();
         for i in 0..zigzag_graph.size() {
-            parents_map.insert(i, zigzag_graph.expanded_parents(i, |p| p.clone()));
+            parents_map.insert(i, zigzag_graph.expanded_parents(i as u32, |p| p.clone()));
         }
 
         parents_map
