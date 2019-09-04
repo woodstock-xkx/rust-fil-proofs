@@ -1,18 +1,20 @@
+use crate::circuit::multi_proof::MultiProof;
 use algebra::{
     bytes::{FromBytes, ToBytes},
-    curves::{sw6::SW6, bls12_377::Bls12_377 as Bls12},
+    curves::{bls12_377::Bls12_377 as Bls12, sw6::SW6},
     fields::{bls12_377 as bls12, sw6, PrimeField},
-    BitIterator,
-    PairingEngine,
+    BitIterator, PairingEngine,
 };
 use dpc::gadgets::verifier::{
     groth16::{Groth16VerifierGadget, PreparedVerifyingKeyGadget, ProofGadget, VerifyingKeyGadget},
-    NIZKBatchVerifierGadget
+    NIZKBatchVerifierGadget,
 };
-use snark::{groth16, Circuit, ConstraintSystem, SynthesisError};
-use snark_gadgets::{bits::boolean::Boolean, pairing::bls12_377::PairingGadget as Bls12PairingGadget, utils::AllocGadget};
-use crate::circuit::multi_proof::MultiProof;
 use snark::groth16::VerifyingKey;
+use snark::{groth16, Circuit, ConstraintSystem, SynthesisError};
+use snark_gadgets::{
+    bits::boolean::Boolean, pairing::bls12_377::PairingGadget as Bls12PairingGadget,
+    utils::AllocGadget,
+};
 
 type VerifierGadget = Groth16VerifierGadget<Bls12, SW6, Bls12PairingGadget>;
 type ProofGadgetT = ProofGadget<Bls12, SW6, Bls12PairingGadget>;
@@ -36,10 +38,11 @@ impl Circuit<SW6> for ProofBatching {
                 // Input must be in little-endian, but BitIterator outputs in big-endian.
                 input_bits.reverse();
 
-                let input_bits =
-                    Vec::<Boolean>::alloc_input(cs.ns(|| format!("Alloc input: {} {}", i, j)), || {
-                        Ok(input_bits)
-                    }).unwrap();
+                let input_bits = Vec::<Boolean>::alloc_input(
+                    cs.ns(|| format!("Alloc input: {} {}", i, j)),
+                    || Ok(input_bits),
+                )
+                .unwrap();
 
                 input_gadgets.push(input_bits);
             }
@@ -48,24 +51,23 @@ impl Circuit<SW6> for ProofBatching {
 
         let mut proof_gadgets = Vec::new();
         for (i, proof) in self.groth_proofs.iter().enumerate() {
-            let proof_gadget = ProofGadgetT::alloc(
-                cs.ns(|| format!("Alloc Proof Gadget: {}", i)),
-                || Ok(proof)
-            ).unwrap();
+            let proof_gadget =
+                ProofGadgetT::alloc(cs.ns(|| format!("Alloc Proof Gadget: {}", i)), || Ok(proof))
+                    .unwrap();
             proof_gadgets.push(proof_gadget);
         }
 
-        let vk_gadget = VkGadget::alloc_input(
-            cs.ns(|| "Vk"), || Ok(&self.verifying_key)).unwrap();
+        let vk_gadget = VkGadget::alloc_input(cs.ns(|| "Vk"), || Ok(&self.verifying_key)).unwrap();
 
-        let mut inputs_batch_iter: Vec<_> =
-            multi_input_gadgets.iter().map(|x| x.iter()).collect();
+        let mut inputs_batch_iter: Vec<_> = multi_input_gadgets.iter().map(|x| x.iter()).collect();
 
-        <VerifierGadget as NIZKBatchVerifierGadget<SW6>>::check_batch_verify(cs.ns(|| "Verify Proofs"),
-                                                                             &vk_gadget,
-                                                                             &mut inputs_batch_iter,
-                                                                             &proof_gadgets,
-        ).unwrap();
+        <VerifierGadget as NIZKBatchVerifierGadget<SW6>>::check_batch_verify(
+            cs.ns(|| "Verify Proofs"),
+            &vk_gadget,
+            &mut inputs_batch_iter,
+            &proof_gadgets,
+        )
+        .unwrap();
 
         Ok(())
     }
@@ -74,13 +76,13 @@ impl Circuit<SW6> for ProofBatching {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand::{thread_rng, Rng};
-    use std::borrow::Borrow;
     use crate::circuit::test::TestConstraintSystem;
     use algebra::utils::ToEngineFr;
+    use rand::{thread_rng, Rng};
+    use std::borrow::Borrow;
 
     struct DummyCircuit<E: PairingEngine> {
-        inputs:          Vec<Option<E::Fr>>,
+        inputs: Vec<Option<E::Fr>>,
         num_constraints: usize,
     }
 
@@ -129,14 +131,14 @@ mod tests {
 
         let params = {
             let c = DummyCircuit::<Bls12> {
-                inputs:          vec![None; num_inputs],
+                inputs: vec![None; num_inputs],
                 num_constraints: num_inputs,
             };
 
             groth16::generate_random_parameters(c, rng).unwrap()
         };
 
-        let mut test_proofs  = Vec::new();
+        let mut test_proofs = Vec::new();
 
         for _ in 0..2 {
             let mut inputs: Vec<Option<bls12::Fr>> = Vec::with_capacity(num_inputs);
@@ -146,7 +148,7 @@ mod tests {
 
             let proof = {
                 let c = DummyCircuit {
-                    inputs:          inputs.clone(),
+                    inputs: inputs.clone(),
                     num_constraints: num_inputs,
                 };
                 // Create a groth16 proof with our parameters.
@@ -166,31 +168,48 @@ mod tests {
             groth_proofs: test_proofs.clone().into_iter().map(|tp| tp.1).collect(),
         };
 
-//        {
-//            let mut cs = TestConstraintSystem::new();
-//
-//            proof_batching_circuit.synthesize(&mut cs).expect("failed to synthesize");
-//
-//            if !cs.is_satisfied() {
-//                panic!(
-//                    "failed to satisfy: {:?}",
-//                    cs.which_is_unsatisfied().unwrap()
-//                );
-//            }
-//        }
+        //        {
+        //            let mut cs = TestConstraintSystem::new();
+        //
+        //            proof_batching_circuit.synthesize(&mut cs).expect("failed to synthesize");
+        //
+        //            if !cs.is_satisfied() {
+        //                panic!(
+        //                    "failed to satisfy: {:?}",
+        //                    cs.which_is_unsatisfied().unwrap()
+        //                );
+        //            }
+        //        }
 
-        let batch_params = groth16::generate_random_parameters(proof_batching_circuit.clone(), rng).unwrap();
-        let batch_proof = groth16::create_random_proof(proof_batching_circuit.clone(), &batch_params, rng).unwrap();
-        let verified = groth16::verify_proof(
-            &batch_params.vk.into(),
-            &batch_proof,
-            &proof_batching_circuit
-                .public_inputs
-                .into_iter()
-                .map(|pi|
-                    pi.iter().map(|v| sw6::Fr::from_repr(v.into_repr())).collect()
-                )
-                .collect::<Vec<_>>()
-        ).unwrap();
+        let batch_params =
+            groth16::generate_random_parameters(proof_batching_circuit.clone(), rng).unwrap();
+        let batch_proof =
+            groth16::create_random_proof(proof_batching_circuit.clone(), &batch_params, rng)
+                .unwrap();
+
+        let transformed = proof_batching_circuit
+            .public_inputs
+            .into_iter()
+            .flat_map(|pi| {
+                pi.into_iter().map(|v| {
+                    use algebra::biginteger::{BigInteger256, BigInteger384};
+
+                    let big256: BigInteger256 = v.into_repr();
+                    // TODO: verify this is the correct transform
+                    let big384: BigInteger384 = BigInteger384::new([
+                        big256.0[0],
+                        big256.0[1],
+                        big256.0[2],
+                        big256.0[3],
+                        0,
+                        0,
+                    ]);
+                    sw6::Fr::from_repr(big384)
+                })
+            })
+            .collect::<Vec<_>>();
+
+        let verified =
+            groth16::verify_proof(&batch_params.vk.into(), &batch_proof, &transformed).unwrap();
     }
 }
