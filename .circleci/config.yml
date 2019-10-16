@@ -388,7 +388,7 @@ workflows:
             - cargo_fetch
           filters:
             branches:
-              only: master
+              only: laser/feat/disk-stack
       - build_linux_release:
           requires:
             - cargo_fetch
