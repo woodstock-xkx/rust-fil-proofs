@@ -8,9 +8,9 @@ use storage_proofs::stacked::{self, LayerChallenges, StackedDrg, EXP_DEGREE};
 use crate::constants::POREP_MINIMUM_CHALLENGES;
 use crate::types::{PaddedBytesAmount, PoStConfig};
 
-const POST_CHALLENGE_COUNT: usize = 30; // TODO: correct value
+const POST_CHALLENGE_COUNT: usize = 1; // TODO: correct value
 
-const LAYERS: usize = 4; // TODO: 10;
+const LAYERS: usize = 1; // TODO: 10;
 
 const DRG_SEED: [u32; 7] = [1, 2, 3, 4, 5, 6, 7]; // Arbitrary, need a theory for how to vary this over time.
 

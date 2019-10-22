@@ -22,7 +22,7 @@ pub const PARALLEL_MERKLE: bool = true;
 /// The base degree used for all DRG graphs. One degree from this value is used to ensure that a
 /// given node always has its immediate predecessor as a parent, thus ensuring unique topological
 /// ordering of the graph nodes.
-pub const BASE_DEGREE: usize = 6;
+pub const BASE_DEGREE: usize = 1;
 
 /// A depth robust graph.
 pub trait Graph<H: Hasher>: ::std::fmt::Debug + Clone + PartialEq + Eq {
