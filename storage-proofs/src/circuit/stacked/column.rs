@@ -44,6 +44,16 @@ impl Column {
         mut cs: CS,
         params: &<Bls12 as JubjubEngine>::Params,
     ) -> Result<num::AllocatedNum<Bls12>, SynthesisError> {
-        hash_single_column(cs.namespace(|| "column_hash"), params, &self.rows)
+        if self.rows.len() == 1 {
+            let row_num =
+                num::AllocatedNum::alloc(cs.namespace(|| "hash_single_column_row_0_num"), || {
+                    self.rows[0]
+                        .map(Into::into)
+                        .ok_or_else(|| SynthesisError::AssignmentMissing)
+                })?;
+            Ok(row_num)
+        } else {
+            hash_single_column(cs.namespace(|| "column_hash"), params, &self.rows)
+        }
     }
 }

@@ -382,7 +382,8 @@ impl<'a, H: 'static + Hasher, G: 'static + Hasher> StackedDrg<'a, H, G> {
             // NOTE: this means we currently keep 2x sector size around, to improve speed.
             if let Some(ref mut exp_parents_data) = exp_parents_data {
                 exp_parents_data.copy_from_slice(&encoding);
-            } else {
+            } else if layers > 1 {
+                // happens only on layer 1, if we only have one layer, no need to set this up
                 exp_parents_data = Some(encoding.clone());
             }
 

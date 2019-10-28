@@ -1,5 +1,7 @@
 use std::marker::PhantomData;
 
+use paired::bls12_381::Fr;
+
 use crate::hasher::pedersen::PedersenDomain;
 use crate::hasher::Hasher;
 use crate::merkle::MerkleProof;
@@ -35,7 +37,13 @@ impl<H: Hasher> Column<H> {
 
     /// Calculate the column hashes `C_i = H(E_i, O_i)` for the passed in column.
     pub fn hash(&self) -> PedersenDomain {
-        hash_single_column(&self.rows[..])
+        if self.rows.len() == 1 {
+            // optimization for single elements
+            let fr: Fr = self.rows[0].into();
+            fr.into()
+        } else {
+            hash_single_column(&self.rows[..])
+        }
     }
 
     pub fn get_node_at_layer(&self, layer: usize) -> &H::Domain {

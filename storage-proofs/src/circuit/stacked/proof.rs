@@ -469,6 +469,134 @@ mod tests {
     }
 
     #[test]
+    fn stacked_circuit_layer_1() {
+        let nodes = 5;
+        let degree = BASE_DEGREE;
+        let expansion_degree = EXP_DEGREE;
+        let num_layers = 1;
+        let layer_challenges = LayerChallenges::new(num_layers, 1);
+
+        let rng = &mut XorShiftRng::from_seed([0x3dbe6259, 0x8d313d76, 0x3237db17, 0xe5bc0654]);
+
+        let replica_id: Fr = rng.gen();
+        let data: Vec<u8> = (0..nodes)
+            .flat_map(|_| fr_into_bytes::<Bls12>(&rng.gen()))
+            .collect();
+        // create a copy, so we can compare roundtrips
+        let mut data_copy = data.clone();
+        let sp = SetupParams {
+            nodes,
+            degree,
+            expansion_degree,
+            seed: new_seed(),
+            layer_challenges: layer_challenges.clone(),
+        };
+
+        let pp = StackedDrg::<PedersenHasher, Blake2sHasher>::setup(&sp).expect("setup failed");
+        let (tau, (p_aux, t_aux)) = StackedDrg::<PedersenHasher, Blake2sHasher>::replicate(
+            &pp,
+            &replica_id.into(),
+            data_copy.as_mut_slice(),
+            None,
+        )
+        .expect("replication failed");
+        assert_ne!(data, data_copy);
+
+        let seed = rng.gen();
+
+        let pub_inputs =
+            PublicInputs::<<PedersenHasher as Hasher>::Domain, <Blake2sHasher as Hasher>::Domain> {
+                replica_id: replica_id.into(),
+                seed,
+                tau: Some(tau.into()),
+                k: None,
+            };
+
+        let priv_inputs = PrivateInputs::<PedersenHasher, Blake2sHasher> {
+            p_aux: p_aux.into(),
+            t_aux: t_aux.into(),
+        };
+
+        let proofs = StackedDrg::<PedersenHasher, Blake2sHasher>::prove_all_partitions(
+            &pp,
+            &pub_inputs,
+            &priv_inputs,
+            1,
+        )
+        .expect("failed to generate partition proofs");
+
+        let proofs_are_valid = StackedDrg::verify_all_partitions(&pp, &pub_inputs, &proofs)
+            .expect("failed to verify partition proofs");
+
+        assert!(proofs_are_valid);
+
+        let expected_inputs = 20;
+        let expected_constraints = 218_975;
+
+        {
+            // Verify that MetricCS returns the same metrics as TestConstraintSystem.
+            let mut cs = MetricCS::<Bls12>::new();
+
+            StackedCompound::circuit(
+            &pub_inputs,
+            <StackedCircuit<Bls12, PedersenHasher, Blake2sHasher> as CircuitComponent>::ComponentPrivateInputs::default(),
+            &proofs[0],
+            &pp,
+            &JJ_PARAMS,
+        )
+            .synthesize(&mut cs.namespace(|| "stacked drgporep"))
+            .expect("failed to synthesize circuit");
+
+            assert_eq!(cs.num_inputs(), expected_inputs, "wrong number of inputs");
+            assert_eq!(
+                cs.num_constraints(),
+                expected_constraints,
+                "wrong number of constraints"
+            );
+        }
+        let mut cs = TestConstraintSystem::<Bls12>::new();
+
+        StackedCompound::circuit(
+            &pub_inputs,
+            <StackedCircuit<Bls12, PedersenHasher, Blake2sHasher> as CircuitComponent>::ComponentPrivateInputs::default(),
+            &proofs[0],
+            &pp,
+            &JJ_PARAMS,
+        )
+        .synthesize(&mut cs.namespace(|| "stacked drgporep"))
+        .expect("failed to synthesize circuit");
+
+        assert!(cs.is_satisfied(), "constraints not satisfied");
+        assert_eq!(cs.num_inputs(), expected_inputs, "wrong number of inputs");
+        assert_eq!(
+            cs.num_constraints(),
+            expected_constraints,
+            "wrong number of constraints"
+        );
+
+        assert_eq!(cs.get_input(0, "ONE"), Fr::one());
+
+        let generated_inputs = <StackedCompound as CompoundProof<
+            _,
+            StackedDrg<PedersenHasher, Blake2sHasher>,
+            _,
+        >>::generate_public_inputs(&pub_inputs, &pp, None);
+        let expected_inputs = cs.get_inputs();
+
+        for ((input, label), generated_input) in
+            expected_inputs.iter().skip(1).zip(generated_inputs.iter())
+        {
+            assert_eq!(input, generated_input, "{}", label);
+        }
+
+        assert_eq!(
+            generated_inputs.len(),
+            expected_inputs.len() - 1,
+            "inputs are not the same length"
+        );
+    }
+
+    #[test]
     #[ignore] // Slow test – run only when compiled for release.
     fn test_stacked_compound_pedersen() {
         stacked_test_compound::<PedersenHasher>();
