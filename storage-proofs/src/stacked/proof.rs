@@ -216,17 +216,17 @@ impl<'a, H: 'static + Hasher, G: 'static + Hasher> StackedDrg<'a, H, G> {
         // generate encodings
         let (encodings, _) = Self::generate_layers(graph, layer_challenges, replica_id, false)?;
 
-        for (key, encoded_node_bytes) in encodings
+        encodings
             .encoding_at_last_layer()
-            .into_iter()
-            .zip(data.chunks_mut(NODE_SIZE))
-        {
-            let encoded_node = H::Domain::try_from_bytes(encoded_node_bytes)?;
-            let data_node = decode::<H::Domain>(*key, encoded_node);
+            .into_par_iter()
+            .zip(data.par_chunks_mut(NODE_SIZE))
+            .for_each(|(key, encoded_node_bytes)| {
+                let encoded_node = H::Domain::try_from_bytes(encoded_node_bytes).unwrap();
+                let data_node = decode::<H::Domain>(key, encoded_node);
 
-            // store result in the data
-            encoded_node_bytes.copy_from_slice(AsRef::<[u8]>::as_ref(&data_node));
-        }
+                // store result in the data
+                encoded_node_bytes.copy_from_slice(AsRef::<[u8]>::as_ref(&data_node));
+            });
 
         Ok(())
     }
@@ -385,7 +385,7 @@ impl<'a, H: 'static + Hasher, G: 'static + Hasher> StackedDrg<'a, H, G> {
             }
 
             // Write the result to disk to avoid keeping it in memory all the time.
-            encodings.push(DiskStore::new_from_slice(layer_size, &encoding)?);
+            encodings.push(DiskStore::new_from_slice(graph_size, &encoding)?);
         }
 
         assert_eq!(
