@@ -4,10 +4,11 @@ extern crate serde;
 use clap::{value_t, App, Arg, SubCommand};
 
 mod hash_fns;
+mod merkleproofs;
 mod rational_post;
 mod stacked;
 
-fn main() {
+fn main() -> Result<(), failure::Error> {
     pretty_env_logger::init_timed();
 
     let stacked_cmd = SubCommand::with_name("stacked")
@@ -102,45 +103,67 @@ fn main() {
     let hash_cmd = SubCommand::with_name("hash-constraints")
         .about("Benchmark hash function inside of a circuit");
 
+    let merkleproof_cmd = SubCommand::with_name("merkleproofs")
+        .about("Benchmark merkle proof generation")
+        .arg(
+            Arg::with_name("size")
+                .long("size")
+                .required(true)
+                .help("The size of the data underlying the tree KiB")
+                .takes_value(true),
+        )
+        .arg(
+            Arg::with_name("proofs")
+                .long("proofs")
+                .required(true)
+                .help("How many proofs to generate")
+                .takes_value(true),
+        );
+
     let matches = App::new("benchy")
         .version("0.1")
         .subcommand(stacked_cmd)
         .subcommand(rational_post_cmd)
         .subcommand(hash_cmd)
+        .subcommand(merkleproof_cmd)
         .get_matches();
 
     match matches.subcommand() {
         ("stacked", Some(m)) => {
-            Ok(())
-                .and_then(|_| {
-                    let layers = value_t!(m, "layers", usize)?;
-                    stacked::run(stacked::RunOpts {
-                        bench: m.is_present("bench"),
-                        bench_only: m.is_present("bench-only"),
-                        challenges: value_t!(m, "challenges", usize)?,
-                        circuit: m.is_present("circuit"),
-                        dump: m.is_present("dump"),
-                        extract: m.is_present("extract"),
-                        groth: m.is_present("groth"),
-                        hasher: value_t!(m, "hasher", String)?,
-                        layers,
-                        no_bench: m.is_present("no-bench"),
-                        no_tmp: m.is_present("no-tmp"),
-                        partitions: value_t!(m, "partitions", usize)?,
-                        size: value_t!(m, "size", usize)?,
-                    })
-                })
-                .expect("stacked failed");
+            let layers = value_t!(m, "layers", usize)?;
+            stacked::run(stacked::RunOpts {
+                bench: m.is_present("bench"),
+                bench_only: m.is_present("bench-only"),
+                challenges: value_t!(m, "challenges", usize)?,
+                circuit: m.is_present("circuit"),
+                dump: m.is_present("dump"),
+                extract: m.is_present("extract"),
+                groth: m.is_present("groth"),
+                hasher: value_t!(m, "hasher", String)?,
+                layers,
+                no_bench: m.is_present("no-bench"),
+                no_tmp: m.is_present("no-tmp"),
+                partitions: value_t!(m, "partitions", usize)?,
+                size: value_t!(m, "size", usize)?,
+            })?;
         }
         ("rational-post", Some(m)) => {
-            let sector_size_kibs = value_t!(m, "size", usize)
-                .expect("could not convert `size` CLI argument to `usize`");
+            let sector_size_kibs = value_t!(m, "size", usize)?;
             let sector_size = sector_size_kibs * 1024;
-            rational_post::run(sector_size).expect("rational-post failed");
+            rational_post::run(sector_size)?;
         }
         ("hash-constraints", Some(_m)) => {
-            hash_fns::run().expect("hash-constraints failed");
+            hash_fns::run()?;
+        }
+        ("merkleproofs", Some(m)) => {
+            let size_kibs = value_t!(m, "size", usize)?;
+            let size = size_kibs * 1024;
+
+            let proofs = value_t!(m, "proofs", usize)?;
+            merkleproofs::run(size, proofs)?;
         }
         _ => panic!("carnation"),
     }
+
+    Ok(())
 }
