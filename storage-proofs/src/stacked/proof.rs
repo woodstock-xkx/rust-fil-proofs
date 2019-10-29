@@ -216,16 +216,13 @@ impl<'a, H: 'static + Hasher, G: 'static + Hasher> StackedDrg<'a, H, G> {
         // generate encodings
         let (encodings, _) = Self::generate_layers(graph, layer_challenges, replica_id, false)?;
 
-        let size = encodings.encoding_at_last_layer().len();
-
         for (key, encoded_node_bytes) in encodings
             .encoding_at_last_layer()
-            .read_range(0..size)
             .into_iter()
             .zip(data.chunks_mut(NODE_SIZE))
         {
             let encoded_node = H::Domain::try_from_bytes(encoded_node_bytes)?;
-            let data_node = decode::<H::Domain>(key, encoded_node);
+            let data_node = decode::<H::Domain>(*key, encoded_node);
 
             // store result in the data
             encoded_node_bytes.copy_from_slice(AsRef::<[u8]>::as_ref(&data_node));
@@ -241,7 +238,7 @@ impl<'a, H: 'static + Hasher, G: 'static + Hasher> StackedDrg<'a, H, G> {
         replica_id: &<H as Hasher>::Domain,
         with_hashing: bool,
     ) -> Result<(Encodings<H>, Option<Vec<[u8; 32]>>)> {
-        info!("generate layers");
+        info!("generate layers (with_hashing: {})", with_hashing);
         let layers = layer_challenges.layers();
         let mut encodings: Vec<DiskStore<H::Domain>> = Vec::with_capacity(layers);
 
@@ -337,7 +334,7 @@ impl<'a, H: 'static + Hasher, G: 'static + Hasher> StackedDrg<'a, H, G> {
                         for parent in parents.iter().skip(base_parents_count) {
                             let buf =
                                 data_at_node(parents_data, *parent as usize).expect("invalid node");
-                            hasher.update(&buf);
+                            hasher.update(buf);
                         }
                     }
                 }
@@ -351,7 +348,7 @@ impl<'a, H: 'static + Hasher, G: 'static + Hasher> StackedDrg<'a, H, G> {
                 key[31] &= 0b0011_1111;
 
                 // store the newly generated key
-                encoding[start..end].copy_from_slice(&key[..]);
+                encoding[start..end].copy_from_slice(&key);
 
                 if with_hashing {
                     let sender_index = node / chunk_len;
@@ -436,73 +433,59 @@ impl<'a, H: 'static + Hasher, G: 'static + Hasher> StackedDrg<'a, H, G> {
         let layers = layer_challenges.layers();
         assert!(layers > 0);
 
-        let (encodings, column_hashes, tree_d) = crossbeam::thread::scope(|s| {
-            // Generate key layers.
-            let h = s.spawn(|_| Self::generate_layers(graph, layer_challenges, replica_id, true));
+        // Generate key layers.
+        let with_hashing = layers > 1;
 
-            // Build the MerkleTree over the original data.
-            let tree_d = match data_tree {
-                Some(t) => t,
-                None => {
-                    info!("building merkle tree for the original data");
-                    Self::build_tree::<G>(&data)
-                }
+        // Build the MerkleTree over the original data.
+        let tree_d = match data_tree {
+            Some(t) => t,
+            None => {
+                info!("building merkle tree for the original data");
+                Self::build_tree::<G>(&data)
+            }
+        };
+
+        let (encodings, column_hashes) =
+            Self::generate_layers(graph, layer_challenges, replica_id, with_hashing)?;
+
+        // Build the tree for CommC
+        info!("building tree_c");
+        let tree_c = if let Some(column_hashes) = column_hashes {
+            let column_hashes_flat = unsafe {
+                // Column_hashes is of type Vec<[u8; 32]>, so this is safe to do.
+                // We do this to avoid unnecessary allocations.
+                std::slice::from_raw_parts(
+                    column_hashes.as_ptr() as *const _,
+                    column_hashes.len() * 32,
+                )
             };
+            Self::build_tree::<H>(column_hashes_flat)
+        } else {
+            assert_eq!(layers, 1, "Missing column hashes");
+            let tree_data = encodings.encoding_at_last_layer();
+            MerkleTree::from_par_iter(tree_data.into_par_iter())
+        };
 
-            let (encodings, column_hashes) = h.join().unwrap().unwrap();
-            let column_hashes = column_hashes.unwrap();
+        // Encode original data into the last layer.
+        info!("encoding data");
+        encodings
+            .encoding_at_last_layer()
+            .into_par_iter()
+            .zip(data.par_chunks_mut(NODE_SIZE))
+            .for_each(|(key, data_node_bytes)| {
+                let data_node = H::Domain::try_from_bytes(data_node_bytes).unwrap();
+                let encoded_node = encode::<H::Domain>(key, data_node);
 
-            (encodings, column_hashes, tree_d)
-        })?;
+                // Store the result in the place of the original data.
+                data_node_bytes.copy_from_slice(AsRef::<[u8]>::as_ref(&encoded_node));
+            });
 
-        let (tree_r_last, tree_c, comm_r): (Tree<H>, Tree<H>, H::Domain) =
-            crossbeam::thread::scope(|s| -> Result<_> {
-                // Encode original data into the last layer.
-                let tree_r_last_handle = s.spawn(|_| {
-                    info!("encoding data");
-                    let size = encodings.encoding_at_last_layer().len();
-                    encodings
-                        .encoding_at_last_layer()
-                        .read_range(0..size)
-                        .into_par_iter()
-                        .zip(data.par_chunks_mut(NODE_SIZE))
-                        .for_each(|(key, data_node_bytes)| {
-                            let data_node = H::Domain::try_from_bytes(data_node_bytes).unwrap();
-                            let encoded_node = encode::<H::Domain>(key, data_node);
+        // Construct the final replica commitment.
+        info!("building tree_r_last");
+        let tree_r_last = Self::build_tree::<H>(data);
 
-                            // Store the result in the place of the original data.
-                            data_node_bytes.copy_from_slice(AsRef::<[u8]>::as_ref(&encoded_node));
-                        });
-
-                    // Construct the final replica commitment.
-                    info!("building tree_r_last");
-                    Self::build_tree::<H>(data)
-                });
-
-                // Build the tree for CommC
-                let tree_c_handle = s.spawn(|_| {
-                    info!("building tree_c");
-                    let column_hashes_flat = unsafe {
-                        // Column_hashes is of type Vec<[u8; 32]>, so this is safe to do.
-                        // We do this to avoid unnecessary allocations.
-                        std::slice::from_raw_parts(
-                            column_hashes.as_ptr() as *const _,
-                            column_hashes.len() * 32,
-                        )
-                    };
-                    Self::build_tree::<H>(column_hashes_flat)
-                });
-
-                let tree_c: Tree<H> = tree_c_handle.join()?;
-                info!("tree_c done");
-                let tree_r_last: Tree<H> = tree_r_last_handle.join()?;
-                info!("tree_r_last done");
-
-                // comm_r = H(comm_c || comm_r_last)
-                let comm_r: H::Domain = Fr::from(hash2(tree_c.root(), tree_r_last.root())).into();
-
-                Ok((tree_r_last, tree_c, comm_r))
-            })??;
+        // comm_r = H(comm_c || comm_r_last)
+        let comm_r: H::Domain = Fr::from(hash2(tree_c.root(), tree_r_last.root())).into();
 
         Ok((
             Tau {
