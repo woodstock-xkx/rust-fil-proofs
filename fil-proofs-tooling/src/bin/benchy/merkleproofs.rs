@@ -37,5 +37,11 @@ pub fn run(size: usize, proofs_count: usize) -> Result<(), failure::Error> {
 
     info!("proofs created");
 
+    for proof in &proofs {
+        assert!(proof.validate::<<PedersenHasher as Hasher>::Function>());
+    }
+
+    info!("proofs validated");
+
     Ok(())
 }

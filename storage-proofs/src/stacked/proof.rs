@@ -385,6 +385,7 @@ impl<'a, H: 'static + Hasher, G: 'static + Hasher> StackedDrg<'a, H, G> {
             }
 
             // Write the result to disk to avoid keeping it in memory all the time.
+            assert_eq!(graph_size, encoding.len() / NODE_SIZE);
             encodings.push(DiskStore::new_from_slice(graph_size, &encoding)?);
         }
 
