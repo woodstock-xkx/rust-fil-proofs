@@ -390,7 +390,7 @@ mod tests {
 
     #[test]
     #[ignore]
-    fn test_seal_lifecycle() -> Result<(), failure::Error> {
+    fn test_seal_lifecycle_layer_missing() -> Result<(), failure::Error> {
         pretty_env_logger::try_init().ok();
 
         let rng = &mut XorShiftRng::from_seed(crate::TEST_SEED);
@@ -432,9 +432,12 @@ mod tests {
         let seed = rng.gen();
         let sector_id = SectorId::from(12);
 
+        let cache_dir_path_a = cache_dir.into_path();
+        let cache_dir_path_b = cache_dir_path_a.clone();
+
         let pre_commit_output = seal_pre_commit(
             config,
-            cache_dir.path(),
+            &cache_dir_path_a,
             &staged_sector_file.path(),
             &sealed_sector_file.path(),
             prover_id,
@@ -446,9 +449,128 @@ mod tests {
         let comm_d = pre_commit_output.comm_d.clone();
         let comm_r = pre_commit_output.comm_r.clone();
 
+        // delete one of the layers from the cache
+        let paths = std::fs::read_dir(&cache_dir_path_a)?;
+        for path in paths {
+            let x = path?.path().display().to_string();
+            if x.ends_with("sc-01-data-layer-1.dat") {
+                std::fs::remove_file(&x)?;
+            }
+        }
+
         let commit_output = seal_commit(
             config,
-            cache_dir.path(),
+            cache_dir_path_b,
+            prover_id,
+            sector_id,
+            ticket,
+            seed,
+            pre_commit_output,
+            &piece_infos,
+        )?;
+
+        let computed_comm_d = compute_comm_d(config, &piece_infos)?;
+
+        assert_eq!(
+            comm_d, computed_comm_d,
+            "Computed and expected comm_d don't match."
+        );
+
+        let verified = verify_seal(
+            config,
+            comm_r,
+            comm_d,
+            prover_id,
+            sector_id,
+            ticket,
+            seed,
+            &commit_output.proof,
+        )?;
+        assert!(verified, "failed to verify valid seal");
+
+        Ok(())
+    }
+
+    #[test]
+    #[ignore]
+    fn test_seal_lifecycle_layer_corruption() -> Result<(), failure::Error> {
+        pretty_env_logger::try_init().ok();
+
+        let rng = &mut XorShiftRng::from_seed(crate::TEST_SEED);
+
+        let sector_size = SECTOR_SIZE_ONE_KIB;
+
+        let number_of_bytes_in_piece =
+            UnpaddedBytesAmount::from(PaddedBytesAmount(sector_size.clone()));
+
+        let piece_bytes: Vec<u8> = (0..number_of_bytes_in_piece.0)
+            .map(|_| rand::random::<u8>())
+            .collect();
+
+        let mut piece_file = NamedTempFile::new()?;
+        piece_file.write_all(&piece_bytes)?;
+        piece_file.as_file_mut().sync_all()?;
+        piece_file.as_file_mut().seek(SeekFrom::Start(0))?;
+
+        let piece_info =
+            generate_piece_commitment(piece_file.as_file_mut(), number_of_bytes_in_piece)?;
+        piece_file.as_file_mut().seek(SeekFrom::Start(0))?;
+
+        let mut staged_sector_file = NamedTempFile::new()?;
+        add_piece(
+            &mut piece_file,
+            &mut staged_sector_file,
+            number_of_bytes_in_piece,
+            &[],
+        )?;
+
+        let piece_infos = vec![piece_info];
+
+        let sealed_sector_file = NamedTempFile::new()?;
+        let config = PoRepConfig(SectorSize(sector_size.clone()), PoRepProofPartitions(2));
+
+        let cache_dir = tempfile::tempdir().unwrap();
+        let prover_id = rng.gen();
+        let ticket = rng.gen();
+        let seed = rng.gen();
+        let sector_id = SectorId::from(12);
+
+        let cache_dir_path_a = cache_dir.into_path();
+        let cache_dir_path_b = cache_dir_path_a.clone();
+
+        let pre_commit_output = seal_pre_commit(
+            config,
+            &cache_dir_path_a,
+            &staged_sector_file.path(),
+            &sealed_sector_file.path(),
+            prover_id,
+            sector_id,
+            ticket,
+            &piece_infos,
+        )?;
+
+        let comm_d = pre_commit_output.comm_d.clone();
+        let comm_r = pre_commit_output.comm_r.clone();
+
+        // corrupt one of the layer files in the cache
+        let paths = std::fs::read_dir(&cache_dir_path_a)?;
+        for path in paths {
+            let x = path?.path().display().to_string();
+            if x.ends_with("sc-01-data-layer-1.dat") {
+                println!("x: {:?}", &x);
+                let mut f = std::fs::OpenOptions::new()
+                    .write(true)
+                    .read(true)
+                    .open(&x)
+                    .expect("could not open");
+
+                f.write_all(b"eat at joe's").expect("could not write");
+            }
+        }
+
+        let commit_output = seal_commit(
+            config,
+            cache_dir_path_b,
             prover_id,
             sector_id,
             ticket,
