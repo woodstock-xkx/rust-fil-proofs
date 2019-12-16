@@ -266,8 +266,8 @@ impl<'a, H: 'static + Hasher, G: 'static + Hasher> StackedDrg<'a, H, G> {
 
         // Final replica layer openings
         trace!("final replica layer openings");
-        let comm_r_last_proof =
-            MerkleProof::new_from_proof(&t_aux.tree_r_last.gen_proof(challenge)?);
+        let (proof, _) = t_aux.tree_r_last.gen_proof_and_partial_tree(challenge, 2)?;
+        let comm_r_last_proof = MerkleProof::new_from_proof(&proof);
 
         trace!("comm_q_parents proof");
         let mut parents = vec![0; wrapper_graph.expansion_degree()];

@@ -6,7 +6,7 @@ use std::path::Path;
 use anyhow::{ensure, Context};
 use log::trace;
 use merkletree::merkle::get_merkle_tree_leafs;
-use merkletree::store::{DiskStore, Store, StoreConfig};
+use merkletree::store::{DiskStore, Store, StoreConfig, StoreConfigDataVersion};
 use serde::{Deserialize, Serialize};
 
 use crate::drgraph::Graph;
@@ -514,7 +514,17 @@ impl<H: Hasher, G: Hasher> TemporaryAux<H, G> {
     }
 
     pub fn delete(t_aux: TemporaryAux<H, G>) -> Result<()> {
-        // TODO: once optimized, compact tree_r_last to only store the top part of the tree.
+        let tree_r_last_size = t_aux
+            .tree_r_last_config
+            .size
+            .context("tree_r_last config has no size")?;
+        let mut tree_r_last_store: DiskStore<G::Domain> =
+            DiskStore::new_from_disk(tree_r_last_size, &t_aux.tree_r_last_config)
+                .context("tree_r_last")?;
+        tree_r_last_store.compact(
+            t_aux.tree_r_last_config.clone(),
+            StoreConfigDataVersion::One as u32,
+        )?;
 
         let tree_d_size = t_aux
             .tree_d_config

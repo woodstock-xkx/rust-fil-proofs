@@ -7,7 +7,7 @@ use anyhow::{ensure, Context, Result};
 use bincode::{deserialize, serialize};
 use log::info;
 use memmap::MmapOptions;
-use merkletree::store::{StoreConfig, DEFAULT_CACHED_ABOVE_BASE_LAYER};
+use merkletree::store::StoreConfig;
 use paired::bls12_381::{Bls12, Fr};
 use storage_proofs::circuit::multi_proof::MultiProof;
 use storage_proofs::circuit::stacked::StackedCompound;
@@ -109,7 +109,7 @@ pub fn seal_pre_commit<R: AsRef<Path>, T: AsRef<Path>, S: AsRef<Path>>(
     let config = StoreConfig::new(
         cache_path.as_ref(),
         CacheKey::CommDTree.to_string(),
-        DEFAULT_CACHED_ABOVE_BASE_LAYER,
+        2, //FIXME: DEFAULT_CACHED_ABOVE_BASE_LAYER,
     );
 
     info!("building merkle tree for the original data");

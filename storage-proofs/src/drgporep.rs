@@ -436,11 +436,13 @@ where
         replica_id: &H::Domain,
         data: &mut [u8],
         data_tree: Option<MerkleTree<H::Domain, H::Function>>,
-        _config: Option<StoreConfig>,
+        config: Option<StoreConfig>,
     ) -> Result<(porep::Tau<H::Domain>, porep::ProverAux<H>)> {
+        use crate::stacked::CacheKey;
+
         let tree_d = match data_tree {
             Some(tree) => tree,
-            None => pp.graph.merkle_tree(data)?,
+            None => pp.graph.merkle_tree(config.clone(), data)?,
         };
 
         let graph = &pp.graph;
@@ -464,8 +466,17 @@ where
             encoded.write_bytes(&mut data[start..end])?;
         }
 
+        let tree_r_last_config = match config {
+            Some(config) => Some(StoreConfig::from_config(
+                &config,
+                CacheKey::CommRLastTree.to_string(),
+                None,
+            )),
+            None => None,
+        };
+
         let comm_d = tree_d.root();
-        let tree_r = pp.graph.merkle_tree(data)?;
+        let tree_r = pp.graph.merkle_tree(tree_r_last_config, data)?;
         let comm_r = tree_r.root();
 
         Ok((
