@@ -23,9 +23,9 @@ regex = "1.1.6"
 commandspec = "0.12.2"
 chrono = { version = "0.4.7", features = ["serde"] }
 memmap = "0.7.0"
-bellperson = "0.5.1"
+bellperson = { tag="0.5.1", git = "https://github.com/woodstock-xkx/bellman.git" }
 paired = "0.16.0"
-fil-sapling-crypto = "0.3.0"
+fil-sapling-crypto = { tag = "0.3.1", git = "https://github.com/woodstock-xkx/sapling-crypto.git" }
 rand = "0.7"
 storage-proofs = { path = "../storage-proofs"}
 filecoin-proofs = { path = "../filecoin-proofs"}
@@ -46,6 +46,6 @@ ff = "=0.5.0"
 rand_xorshift = "0.2.0"
 
 [features]
-default = ["gpu", "measurements"]
+default = ["measurements"]
 gpu = ["storage-proofs/gpu", "filecoin-proofs/gpu", "bellperson/gpu", "fil-sapling-crypto/gpu"]
 measurements = ["storage-proofs/measurements"]
