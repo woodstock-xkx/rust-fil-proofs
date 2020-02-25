@@ -62,6 +62,12 @@ fn blake2s_circuit_benchmark(c: &mut Criterion) {
         &mut rng1,
     )
     .unwrap();
+    let qap = {
+        let c = Blake2sExample {
+            data: &vec![None; 256],
+        };
+        generate_qap::<Bls12, Blake2sExample>(c, &String::from("blake2s"))
+    }.unwrap();
 
     let params = vec![32];
 
@@ -75,6 +81,7 @@ fn blake2s_circuit_benchmark(c: &mut Criterion) {
 
                 b.iter(|| {
                     let proof = create_random_proof(
+                        &qap,
                         Blake2sExample {
                             data: data.as_slice(),
                         },

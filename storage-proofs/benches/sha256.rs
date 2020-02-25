@@ -72,12 +72,16 @@ fn sha256_circuit_benchmark(c: &mut Criterion) {
                     &mut rng1,
                 )
                 .unwrap();
+                let qap = generate_qap::<Bls12, _>(Sha256Example {
+                    data: &vec![None; *bytes as usize * 8],
+                }, &String::from("sha256")).unwrap();
 
                 let mut rng = thread_rng();
                 let data: Vec<Option<bool>> = (0..bytes * 8).map(|_| Some(rng.gen())).collect();
 
                 b.iter(|| {
                     let proof = create_random_proof(
+                        &qap,
                         Sha256Example {
                             data: data.as_slice(),
                         },
