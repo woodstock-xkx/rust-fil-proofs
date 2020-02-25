@@ -29,6 +29,7 @@ use crate::types::{
 };
 
 pub use storage_proofs::election_post::Candidate;
+use crate::api::util::get_qap;
 
 /// The minimal information required about a replica, in order to be able to generate
 /// a PoSt over it.
@@ -268,6 +269,11 @@ pub fn generate_post(
     winners: Vec<Candidate>,
     prover_id: ProverId,
 ) -> Result<Vec<SnarkProof>> {
+
+    let post_qap_file_path = std::env::var("PoSt_QAP_PATH")
+        .unwrap_or(String::from("/var/tmp/circuit_post_qap.dat"));
+    let post_qap = get_qap("post", post_qap_file_path.as_str())?;
+
     info!("generate_post:start");
 
     let sector_count = replicas.len() as u64;
@@ -321,7 +327,7 @@ pub fn generate_post(
 
     for (pub_inputs, priv_inputs) in &inputs {
         let proof =
-            ElectionPoStCompound::prove(&pub_params, &pub_inputs, &priv_inputs, &groth_params)?;
+            ElectionPoStCompound::prove(&(*post_qap), &pub_params, &pub_inputs, &priv_inputs, &groth_params)?;
         proofs.push(proof.to_vec()?);
     }
 

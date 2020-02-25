@@ -31,6 +31,7 @@ use storage_proofs::proof::ProofScheme;
 use storage_proofs::stacked::{
     self, CacheKey, ChallengeRequirements, StackedConfig, StackedDrg, TemporaryAuxCache, EXP_DEGREE,
 };
+use bellperson::groth16::generate_qap;
 
 // We can only one of the profilers at a time, either CPU (`profile`)
 // or memory (`heap-profile`), duplicating the function so they won't
@@ -338,11 +339,14 @@ fn do_the_work<H: 'static>(
             let gparams =
                 <StackedCompound as CompoundProof<_, StackedDrg<H, Blake2sHasher>, _>>::groth_params::<rand::rngs::OsRng>(None, &compound_public_params.vanilla_params)
                     .unwrap();
+            let qap = generate_qap(<StackedCompound as CompoundProof<_, StackedDrg<H, Blake2sHasher>, _>>::blank_circuit(&compound_public_params.vanilla_params),
+                &String::from("stacked_compound")).unwrap();
 
             let multi_proof = {
                 let start = Instant::now();
                 start_profile("groth-prove");
                 let result = StackedCompound::prove(
+                    &qap,
                     &compound_public_params,
                     &pub_inputs,
                     &priv_inputs,
@@ -490,8 +494,8 @@ fn main() {
         .get_matches();
 
     let data_size = value_t!(matches, "size", usize).unwrap() * 1024;
-    let window_challenge_count = value_t!(matches, "window-challenges", usize).unwrap();
-    let wrapper_challenge_count = value_t!(matches, "wrapper-challenges", usize).unwrap();
+    let window_challenge_count = value_t!(matches, "challenges", usize).unwrap();
+    let wrapper_challenge_count = value_t!(matches, "challenges", usize).unwrap();
     let hasher = value_t!(matches, "hasher", String).unwrap();
     let layers = value_t!(matches, "layers", usize).unwrap();
     let partitions = value_t!(matches, "partitions", usize).unwrap();

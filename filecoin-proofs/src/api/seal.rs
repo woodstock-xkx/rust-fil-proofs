@@ -35,6 +35,8 @@ use crate::types::{
     SealCommitOutput, SealPreCommitOutput, Ticket,
 };
 
+use crate::api::util::get_qap;
+
 /// Seals the staged sector at `in_path` in place, saving the resulting replica to `out_path`.
 ///
 /// # Arguments
@@ -254,6 +256,10 @@ pub fn seal_commit<T: AsRef<Path>>(
         t_aux: t_aux_cache,
     };
 
+    let porep_qap_file_path = std::env::var("PoRep_QAP_PATH")
+        .unwrap_or(String::from("/var/tmp/circuit_porep_qap.dat"));
+    let porep_qap = get_qap("porep", porep_qap_file_path.as_str())?;
+
     let groth_params = get_stacked_params(porep_config)?;
 
     info!(
@@ -272,6 +278,7 @@ pub fn seal_commit<T: AsRef<Path>>(
     let compound_public_params = StackedCompound::setup(&compound_setup_params)?;
 
     let proof = StackedCompound::prove(
+        &(*porep_qap),
         &compound_public_params,
         &public_inputs,
         &private_inputs,
