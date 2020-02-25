@@ -76,6 +76,13 @@ fn xor_circuit_benchmark(c: &mut Criterion) {
         &mut rng1,
     )
     .unwrap();
+    let qap = {
+        let c = XorExample {
+            key: &vec![None; 8 * 32],
+            data: &vec![None; 256],
+        };
+        generate_qap::<Bls12, XorExample>(c, &String::from("xor_example"))
+    }.unwrap();
 
     let params = vec![32];
 
@@ -90,6 +97,7 @@ fn xor_circuit_benchmark(c: &mut Criterion) {
 
                 b.iter(|| {
                     let proof = create_random_proof(
+                        &qap,
                         XorExample {
                             key: key.as_slice(),
                             data: data.as_slice(),
