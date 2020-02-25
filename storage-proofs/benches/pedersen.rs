@@ -119,6 +119,14 @@ fn pedersen_circuit_benchmark(c: &mut Criterion) {
     )
     .unwrap();
 
+    let qap = {
+        let c = PedersenExample::<Bls12> {
+            params: &*JJ_PARAMS,
+            data: &vec![None; 256],
+        };
+        generate_qap(c, &String::from("pedersen_circuit_benchmark"))
+    }.unwrap();
+
     let params = vec![32];
 
     c.bench(
@@ -131,6 +139,7 @@ fn pedersen_circuit_benchmark(c: &mut Criterion) {
 
                 b.iter(|| {
                     let proof = create_random_proof(
+                        &qap,
                         PedersenExample {
                             params: &*JJ_PARAMS,
                             data: data.as_slice(),
@@ -176,6 +185,14 @@ fn pedersen_md_circuit_benchmark(c: &mut Criterion) {
     )
     .unwrap();
 
+    let qap = {
+        let c = PedersenMdExample::<Bls12> {
+            params: &*JJ_PARAMS,
+            data: &vec![None; 256],
+        };
+        generate_qap(c, &String::from("pedersen_md_circuit_benchmark"))
+    }.unwrap();
+
     let params = vec![64];
 
     c.bench(
@@ -188,6 +205,7 @@ fn pedersen_md_circuit_benchmark(c: &mut Criterion) {
 
                 b.iter(|| {
                     let proof = create_random_proof(
+                        &qap,
                         PedersenMdExample {
                             params: &*JJ_PARAMS,
                             data: data.as_slice(),

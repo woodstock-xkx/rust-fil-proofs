@@ -2,6 +2,7 @@ use rayon::prelude::*;
 
 use anyhow::{ensure, Context};
 use bellperson::{groth16, Circuit};
+use bellperson::groth16::Qap;
 use fil_sapling_crypto::jubjub::JubjubEngine;
 use log::info;
 use rand::{rngs::OsRng, RngCore};
@@ -66,6 +67,7 @@ where
 
     /// prove is equivalent to ProofScheme::prove.
     fn prove<'b>(
+        qap: &Qap<E>,
         pub_params: &PublicParams<'a, S>,
         pub_in: &S::PublicInputs,
         priv_in: &S::PrivateInputs,
@@ -102,6 +104,7 @@ where
                 .par_iter()
                 .map(|vanilla_proof| {
                     Self::circuit_proof(
+                        qap,
                         pub_in,
                         &vanilla_proof,
                         &pub_params.vanilla_params,
@@ -152,6 +155,7 @@ where
     /// circuit_proof is used internally and should neither be called nor implemented outside of
     /// default trait methods.
     fn circuit_proof(
+        qap: &Qap<E>,
         pub_in: &S::PublicInputs,
         vanilla_proof: &S::Proof,
         pub_params: &S::PublicParams,
@@ -170,7 +174,7 @@ where
             )
         };
 
-        let groth_proof = groth16::create_random_proof(make_circuit()?, groth_params, &mut rng)?;
+        let groth_proof = groth16::create_random_proof(qap,make_circuit()?, groth_params, &mut rng)?;
 
         let mut proof_vec = vec![];
         groth_proof.write(&mut proof_vec)?;

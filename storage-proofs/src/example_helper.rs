@@ -94,6 +94,10 @@ pub trait Example<'a, C: Circuit<Bls12>>: Default {
 
             p
         };
+        let qap = {
+            let c = self.create_circuit(rng, &JJ_PARAMS, tree_depth, challenge_count, leaves, m);
+            generate_qap(c, &String::from("example_helper_work_bench")).unwrap()
+        };
 
         info!("generating verification key");
         let pvk = prepare_verifying_key(&groth_params.vk);
@@ -115,6 +119,7 @@ pub trait Example<'a, C: Circuit<Bls12>>: Default {
 
             let start = Instant::now();
             let proof = self.create_proof(
+                &qap,
                 rng,
                 &JJ_PARAMS,
                 &groth_params,
@@ -317,6 +322,7 @@ pub trait Example<'a, C: Circuit<Bls12>>: Default {
     #[allow(clippy::too_many_arguments)]
     fn create_proof<R: Rng>(
         &mut self,
+        qap: &Qap<Bls12>,
         rng: &mut R,
         engine_params: &'a <Bls12 as JubjubEngine>::Params,
         groth_params: &Parameters<Bls12>,
@@ -326,7 +332,7 @@ pub trait Example<'a, C: Circuit<Bls12>>: Default {
         m: usize,
     ) -> Proof<Bls12> {
         let c = self.create_circuit(rng, engine_params, tree_depth, challenge_count, leaves, m);
-        create_random_proof(c, groth_params, rng).expect("failed to create proof")
+        create_random_proof(qap, c, groth_params, rng).expect("failed to create proof")
     }
 
     /// Verify the given proof, return `None` if not implemented.
